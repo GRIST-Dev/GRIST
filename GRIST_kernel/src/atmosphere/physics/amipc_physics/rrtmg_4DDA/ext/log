@@ -1,0 +1,4 @@
+rrtmg_sw/rrtmg_sw_spcvrt.F90:      subroutine spcvrt_sw &
+rrtmg_sw/rrtmg_sw_spcvrt.F90:! Interface:  *spcvrt_sw* is called from *rrtmg_sw.F90* or rrtmg_sw.1col.F90*
+rrtmg_sw/rrtmg_sw_spcvrt.F90:      end subroutine spcvrt_sw
+rrtmg_sw/rrtmg_sw_vrtqdr.F90:! Interface:  *vrtqdr_sw* is called from *spcvrt_sw* and *spcvmc_sw*
