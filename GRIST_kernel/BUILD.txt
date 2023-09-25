@@ -1,0 +1,28 @@
+Compiling parallel version of GRIST:
+
+Requirements:
+(1) The METIS library (built with 32 bits data type, i.e. IDXTYPEWIDTH = 32 (the default), since the input data of the node 
+    indices are of type integer(4) in GRIST)
+(2) The NetCDF library
+(3) The PnetCDF library
+(4) The Lapack library
+All the external libraries should be built with the same C, Fortran, and CXX compilers of those building GRIST.
+
+Recommended lib versions are:
+lapack-3.8.0  
+metis-5.1.0  
+netcdf-3.6.3  
+pnetcdf-1.12.2
+intel compiler&mpi 2018
+
+Make the following changes to the build.sh:
+
+Modify NETCDF, PNETCDF, LAPACK, and METIS to specify your Netcdf, PnetCDF, Lapack, and METIS lib directories. Modify EXEDIR 
+to specify the directory for the target binary executable of GRIST. Then modify FC to specify the Fortran compiler. 
+After the modifications, type
+
+$ ./build.sh ${model}  
+
+to finish building of GRIST. 
+
+If sucessfully done, one should have two executable binaries: ${model}.exe and partition.exe. 

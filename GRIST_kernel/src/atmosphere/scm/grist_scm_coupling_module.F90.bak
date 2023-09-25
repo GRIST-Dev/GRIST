@@ -1,0 +1,172 @@
+!======================================================
+!
+!  Created by LiXiaohan on 19/5/20.
+!  Including:
+!  dyn-core Euralian update using the var_obs;
+!  dyn-core and physics coupling in SCM;
+!  update var_obs if needed.
+!======================================================
+
+ module grist_scm_coupling_module
+    use grist_constants,                    only: i4, r8, latvap, gravity, rdry, cp, stebol
+    use grist_nml_module,                   only: nlev, nlevp, ntracer, model_timestep, physpkg
+    use grist_physics_data_structure,       only: pstate, ptend_f3, phy_tracer_info
+    use grist_cam5_data_structure,          only: pstate_cam
+    use grist_physics_update,               only: geopotential_hydrostatic
+    use grist_scm_dyn_vars
+    use grist_scm_comm_module
+    use grist_handle_error,                 only: endrun
+    use grist_mpi
+
+    implicit none
+
+    private
+    public  :: grist_scm_dtp_coupling,      &
+               grist_scm_ptd_coupling
+
+contains
+    subroutine grist_scm_dtp_coupling
+    use grist_scm_pressure_update,          only: time_integration_renew_mass_state
+
+! local
+    integer(i4)                         :: k, m 
+
+! geopotential at surface and albedo, same as SCAM test cases
+ 
+    if(trim(scm_test_name) .eq. 'arm95' .or. trim(scm_test_name) .eq. 'ARM95')then
+        pstate%geop_at_pc_surface%f(1)   = 4930.40595298484
+        pstate%landfrac_at_pc_surface%f  = 1._r8
+        pstate%icefrac_at_pc_surface%f   = 0._r8
+        pstate%ocnfrac_at_pc_surface%f   = 0._r8
+
+    elseif(trim(scm_test_name) .eq. 'arm97' .or. trim(scm_test_name) .eq. 'ARM97')then
+        pstate%geop_at_pc_surface%f(1)   = 4930.40595298484
+        pstate%landfrac_at_pc_surface%f  = 1._r8
+        pstate%icefrac_at_pc_surface%f   = 0._r8
+        pstate%ocnfrac_at_pc_surface%f   = 0._r8
+
+!        pstate%atm_in_asdir_at_pc_surface%f       = 0.147983775114027
+!        pstate%atm_in_asdif_at_pc_surface%f       = 0.148425654634626
+!        pstate%atm_in_aldir_at_pc_surface%f       = 0.269357201957768
+!        pstate%atm_in_aldif_at_pc_surface%f       = 0.271632635035791
+
+    elseif(trim(scm_test_name) .eq. 'bomex' .or. trim(scm_test_name) .eq. 'BOMEX' .or.      &
+           trim(scm_test_name) .eq. 'gateIII' .or. trim(scm_test_name) .eq. 'GATEIII' .or.  &
+           trim(scm_test_name) .eq. 'dycoms' .or. trim(scm_test_name) .eq. 'DYCOMS' .or.  &
+           trim(scm_test_name) .eq. 'cgils' .or. trim(scm_test_name) .eq. 'CGILS')then
+       pstate%geop_at_pc_surface%f(1)   = 0._r8
+       pstate%landfrac_at_pc_surface%f  = 0._r8
+       pstate%icefrac_at_pc_surface%f   = 0._r8
+       pstate%ocnfrac_at_pc_surface%f   = 1._r8
+
+    elseif(trim(scm_test_name) .eq. 'twp06' .or. trim(scm_test_name) .eq. 'TWP06')then
+       pstate%geop_at_pc_surface%f(1)   = 0._r8
+       pstate%landfrac_at_pc_surface%f  = 0._r8
+       pstate%icefrac_at_pc_surface%f   = 0._r8
+       pstate%ocnfrac_at_pc_surface%f   = 1._r8
+
+
+       !pstate%geop_at_pc_surface%f(1)   = 1213.06045693356
+       !pstate%landfrac_at_pc_surface%f  = 1._r8
+       !pstate%icefrac_at_pc_surface%f   = 0._r8
+       !pstate%ocnfrac_at_pc_surface%f   = 0._r8
+
+       !pstate%atm_in_asdir_at_pc_surface%f       = 0.113442289485474
+       !pstate%atm_in_asdif_at_pc_surface%f       = 6.390835260094527E-002
+       !pstate%atm_in_aldir_at_pc_surface%f       = 0.309041801601341
+       !pstate%atm_in_aldif_at_pc_surface%f       = 0.219785724667813
+
+    else
+        if(mpi_rank()==0)then
+            print*,'The SCM test has no geopotential height, please set it in grist_scm_coupling_module.F90'
+            call endrun('stop at subroutine grist_scm_dtp_coupling')
+        end if
+    end if
+
+    pstate%u_wind_at_pc_full_level%f(:,1)         = scm_u(:)
+    pstate%v_wind_at_pc_full_level%f(:,1)         = scm_v(:)
+    pstate%omega_at_pc_full_level%f(:,1)          = scm_omega(:)
+    pstate%temp_at_pc_full_level%f(:,1)           = scm_t3(:,n3m2)
+    pstate%tracer_mxrt_at_pc_full_level%f(1:ntracer,:,1)  = scm_q3(1:ntracer,:,n3m2)
+    pstate%pressure_at_pc_surface%f(1)            = scm_ps3(n3m2)
+
+    do m = 1, ntracer
+    where(pstate%tracer_mxrt_at_pc_full_level%f(m,:,1) .lt. phy_tracer_info(m)%qmin)   &
+          pstate%tracer_mxrt_at_pc_full_level%f(m,:,1) = phy_tracer_info(m)%qmin
+    end do
+
+! update model level pressure
+    call time_integration_renew_mass_state(1, pstate%pressure_at_pc_surface%f(1)     , &
+                                              pstate%pressure_at_pc_face_level%f(:,1), &
+                                              pstate%delp_at_pc_full_level%f(:,1)    , &
+                                              pstate%pressure_at_pc_full_level%f(:,1), &
+                                              pstate%delp_at_pc_face_level%f(:,1))
+
+    do k = 1, nlev
+        pstate%exner_at_pc_full_level%f(k,1)      = (pstate%pressure_at_pc_surface%f(1)/    &
+                                                     pstate%pressure_at_pc_full_level%f(k,1))**(rdry/cp)
+    end do
+
+! update geopotential and model level height
+! in physpkg, z_full and z_face do not contain geopotential surface height.   LiXH
+    call geopotential_hydrostatic(1, pstate%temp_at_pc_full_level%f(:,1),             &
+                                  pstate%pressure_at_pc_face_level%f(:,1),            &
+                                  pstate%pressure_at_pc_full_level%f(:,1),            &
+                                  pstate%delp_at_pc_full_level%f(:,1),                &
+                                  pstate%tracer_mxrt_at_pc_full_level%f(1,:,1),       &
+                                  pstate%z_at_pc_full_level%f(:,1),                   &
+                                  pstate%z_at_pc_face_level%f(:,1) )
+
+    do k = 1, nlev
+        pstate%static_energy_at_pc_full_level%f(k,1) = cp*pstate%temp_at_pc_full_level%f(k,1)       &
+                                                      +gravity*pstate%z_at_pc_full_level%f(k,1)     & 
+                                                      +pstate%geop_at_pc_surface%f(1)
+    end do
+
+    if(use_phys_vars .and. physpkg .eq. 'CAM5BASED')then
+        if(have_tg)then
+            pstate%ts_at_pc_surface%f(1)                  = tground
+            pstate%atm_in_lwup_at_pc_surface%f(1)         = stebol * tground**4
+        else
+            pstate%ts_at_pc_surface%f(1)                  = tobs(nlev)
+            pstate%atm_in_lwup_at_pc_surface%f(1)         = stebol * tobs(nlev)**4
+        end if
+    end if
+
+    if(pstate%ocnfrac_at_pc_surface%f(1) .eq. 1._r8)then
+        pstate%sst_at_pc_surface%f(1) = pstate%ts_at_pc_surface%f(1)
+    end if
+
+    end subroutine grist_scm_dtp_coupling
+
+    subroutine grist_scm_ptd_coupling(dtime)
+! io
+    real(r8), intent(in)    :: dtime
+! local
+    integer :: m
+
+! physics tendency
+    scm_u_tend(:) = ptend_f3%tend_u_wind_at_pc_full_level%f(:,1)
+    scm_v_tend(:) = ptend_f3%tend_v_wind_at_pc_full_level%f(:,1)
+    scm_t_tend(:) = ptend_f3%tend_temp_at_pc_full_level%f(:,1)
+#ifdef SCAM
+    scm_qminus(1:ntracer,:) = pstate%tracer_mxrt_at_pc_full_level%f(1:ntracer,:,1)
+    !--------------shoule be modulated to neg3 in CAM, LiXH--------------
+    do m = 1, ntracer
+        where(scm_qminus(m,:) .lt. phy_tracer_info(m)%qmin)   &
+              scm_qminus(m,:) = phy_tracer_info(m)%qmin
+    end do
+    !--------------shoule be modulated to neg3 in CAM, LiXH--------------
+
+#else
+    scm_q_tend(1:ntracer,:) = ptend_f3%tend_tracer_mxrt_at_pc_full_level%f(1:ntracer,:,1)
+    ptend_f3%tend_tracer_mxrt_at_pc_full_level%f = 0._r8
+#endif
+
+    ptend_f3%tend_u_wind_at_pc_full_level%f      = 0._r8
+    ptend_f3%tend_v_wind_at_pc_full_level%f      = 0._r8
+    ptend_f3%tend_temp_at_pc_full_level%f        = 0._r8
+
+    end subroutine grist_scm_ptd_coupling
+
+ end module grist_scm_coupling_module
