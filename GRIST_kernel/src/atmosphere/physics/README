@@ -1,0 +1,9 @@
+The full model physics suites originate from CAM5.1 and WRF-V3:
+
+https://www2.cesm.ucar.edu/models/cesm1.2/
+https://www.mmm.ucar.edu/models/wrf
+
+These packages may be subject to their respective copyright terms and can be used, modified, or redistributed in accordance with the licensing conditions of the original host model codes (if applicable).
+
+GRIST-Dev has made modifications to these components, which are explicitly documented within the code. Additionally, AMIPC_Physics includes contributions from third-party collaborators, who retain ownership of their respective intellectual property rights, where applicable.
+
