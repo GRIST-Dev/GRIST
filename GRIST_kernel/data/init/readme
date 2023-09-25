@@ -1,0 +1,6 @@
+A workflow from downloading an ERA5/GFS pres-level data file to GRIST-readable atmosphere initial file.
+
+(1) go to download for getting ERA5/GFS data; for GFS, go to their webpage.
+(2) go to scripts for steps 1-3.
+(3) ERA5: go to data and do step4 for final input.
+    GFS:  go to data and do run.sh for invariant sst/sic.

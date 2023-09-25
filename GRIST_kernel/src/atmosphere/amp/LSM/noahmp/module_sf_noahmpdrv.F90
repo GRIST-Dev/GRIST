@@ -1,0 +1,983 @@
+
+module module_sf_noahmpdrv
+   use grist_constants, only: r8
+
+contains
+
+
+  subroutine noahmplsm(itimestep,        yr,   julian,   coszin,   xlatin,  & 
+                  dz8w,       dt,       dzs,    nsoil,       dx,            & 
+	        ivgtyp,   isltyp,    vegfra,   vegmax,      tmn,            & 
+		 xland,     xice,xice_thres,                                & 
+                 idveg, iopt_crs,  iopt_btr, iopt_run, iopt_sfc, iopt_frz,  & 
+              iopt_inf, iopt_rad,  iopt_alb, iopt_snf,iopt_tbot, iopt_stc,  & 
+              iopt_gla, iopt_rsf,   iz0tlnd,                                & 
+                   t3d,     qv3d,     u_phy,    v_phy,   swdown,      glw,  & 
+		 p8w3d,precip_in,        sr,                                & 
+                   tsk,      hfx,      qfx,        lh,   grdflx,    smstav, & 
+                smstot,sfcrunoff, udrunoff,    albedo,    snowc,     smois, & 
+                  sh2o,     tslb,     snow,     snowh,   canwat,    acsnom, & 
+                  acsnow,    emiss,     qsfc,                               & 
+                     z0,      znt,                                          & 
+               isnowxy,     tvxy,     tgxy,  canicexy, canliqxy,     eahxy, & 
+	         tahxy,     cmxy,     chxy,    fwetxy, sneqvoxy,  alboldxy, & 
+               qsnowxy, wslakexy,    zwtxy,      waxy,     wtxy,    tsnoxy, & 
+	       zsnsoxy,  snicexy,  snliqxy,  lfmassxy, rtmassxy,  stmassxy, & 
+	        woodxy, stblcpxy, fastcpxy,    xlaixy,   xsaixy,   taussxy, & 
+	       smoiseq, smcwtdxy, deeprechxy,   rechxy,  grainxy,    gddxy,  & 
+	        t2mvxy,   t2mbxy,    q2mvxy,   q2mbxy,                      & 
+	        tradxy,    neexy,    gppxy,     nppxy,   fvegxy,   runsfxy, & 
+	       runsbxy,   ecanxy,   edirxy,   etranxy,    fsaxy,    firaxy, & 
+	        aparxy,    psnxy,    savxy,     sagxy,  rssunxy,   rsshaxy, & 
+		bgapxy,   wgapxy,    tgvxy,     tgbxy,    chvxy,     chbxy, & 
+		 shgxy,    shcxy,    shbxy,     evgxy,    evbxy,     ghvxy, & 
+		 ghbxy,    irgxy,    ircxy,     irbxy,     trxy,     evcxy, & 
+              chleafxy,   chucxy,   chv2xy,    chb2xy,                      & 
+               taux2d, tauy2d, fire2d,  albd2d, albi2d,&  !cheyz 
+               ids,ide,  jds,jde,  kds,kde,                    &
+               ims,ime,  jms,jme,  kms,kme,                    &
+               its,ite,  jts,jte,  kts,kte,                    &
+               mp_rainc, mp_rainnc, mp_shcv, mp_snow, mp_graup, mp_hail     )
+
+    use module_sf_noahmplsm
+
+    use module_sf_noahmp_glacier
+    use noahmp_tables, only: isice_table, co2_table, o2_table
+    use grist_mpi
+
+
+    implicit none
+
+    integer,                                         intent(in   ) ::  itimestep 
+    integer,                                         intent(in   ) ::  yr        
+    real(r8)  ,                                            intent(in   ) ::  julian    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(in   ) ::  coszin    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(in   ) ::  xlatin    
+    real(r8)  ,    dimension( ims:ime, kms:kme, jms:jme ), intent(in   ) ::  dz8w      
+    real(r8)  ,                                            intent(in   ) ::  dt        
+    real(r8)  ,    dimension(1:nsoil),                     intent(in   ) ::  dzs       
+    integer,                                         intent(in   ) ::  nsoil     
+    real(r8)  ,                                            intent(in   ) ::  dx        
+    integer, dimension( ims:ime,          jms:jme ), intent(in   ) ::  ivgtyp    
+    integer, dimension( ims:ime,          jms:jme ), intent(in   ) ::  isltyp    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(in   ) ::  vegfra    
+    real(r8)  ,    dimension( ims:ime ,         jms:jme ), intent(in   ) ::  vegmax    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(in   ) ::  tmn       
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(in   ) ::  xland     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(in   ) ::  xice      
+    real(r8)  ,                                            intent(in   ) ::  xice_thres
+    integer,                                         intent(in   ) ::  idveg     
+    integer,                                         intent(in   ) ::  iopt_crs  
+    integer,                                         intent(in   ) ::  iopt_btr  
+    integer,                                         intent(in   ) ::  iopt_run  
+    integer,                                         intent(in   ) ::  iopt_sfc  
+    integer,                                         intent(in   ) ::  iopt_frz  
+    integer,                                         intent(in   ) ::  iopt_inf  
+    integer,                                         intent(in   ) ::  iopt_rad  
+    integer,                                         intent(in   ) ::  iopt_alb  
+    integer,                                         intent(in   ) ::  iopt_snf  
+    integer,                                         intent(in   ) ::  iopt_tbot 
+    integer,                                         intent(in   ) ::  iopt_stc  
+    integer,                                         intent(in   ) ::  iopt_gla  
+    integer,                                         intent(in   ) ::  iopt_rsf  
+    integer,                                         intent(in   ) ::  iz0tlnd   
+    real(r8)  ,    dimension( ims:ime, kms:kme, jms:jme ), intent(in   ) ::  t3d       
+    real(r8)  ,    dimension( ims:ime, kms:kme, jms:jme ), intent(in   ) ::  qv3d      
+    real(r8)  ,    dimension( ims:ime, kms:kme, jms:jme ), intent(in   ) ::  u_phy     
+    real(r8)  ,    dimension( ims:ime, kms:kme, jms:jme ), intent(in   ) ::  v_phy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(in   ) ::  swdown    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(in   ) ::  glw       
+    real(r8)  ,    dimension( ims:ime, kms:kme, jms:jme ), intent(in   ) ::  p8w3d     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(in   ) ::  precip_in 
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(in   ) ::  sr        
+
+
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(in   ), optional ::  mp_rainc  
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(in   ), optional ::  mp_rainnc 
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(in   ), optional ::  mp_shcv   
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(in   ), optional ::  mp_snow   
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(in   ), optional ::  mp_graup  
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(in   ), optional ::  mp_hail  
+
+
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  tsk       
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  hfx       
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  qfx       
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  lh        
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  grdflx    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  smstav    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  smstot    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  sfcrunoff 
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  udrunoff  
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  albedo    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  snowc     
+    real(r8)  ,    dimension( ims:ime, 1:nsoil, jms:jme ), intent(inout) ::  smois     
+    real(r8)  ,    dimension( ims:ime, 1:nsoil, jms:jme ), intent(inout) ::  sh2o      
+    real(r8)  ,    dimension( ims:ime, 1:nsoil, jms:jme ), intent(inout) ::  tslb      
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  snow      
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  snowh     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  canwat    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  acsnom    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  acsnow    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  emiss     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  qsfc      
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  z0        
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  znt       
+    integer, dimension( ims:ime,          jms:jme ), intent(inout) ::  isnowxy   
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  tvxy      
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  tgxy      
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  canicexy  
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  canliqxy  
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  eahxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  tahxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  cmxy      
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  chxy      
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  fwetxy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  sneqvoxy  
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  alboldxy  
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  qsnowxy   
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  wslakexy  
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  zwtxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  waxy      
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  wtxy      
+    real(r8)  ,    dimension( ims:ime,-2:0,     jms:jme ), intent(inout) ::  tsnoxy    
+    real(r8)  ,    dimension( ims:ime,-2:nsoil, jms:jme ), intent(inout) ::  zsnsoxy   
+    real(r8)  ,    dimension( ims:ime,-2:0,     jms:jme ), intent(inout) ::  snicexy   
+    real(r8)  ,    dimension( ims:ime,-2:0,     jms:jme ), intent(inout) ::  snliqxy   
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  lfmassxy  
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  rtmassxy  
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  stmassxy  
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  woodxy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  grainxy   
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  gddxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  stblcpxy  
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  fastcpxy  
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  xlaixy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  xsaixy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  taussxy   
+    real(r8)  ,    dimension( ims:ime, 1:nsoil, jms:jme ), intent(inout) ::  smoiseq   
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  smcwtdxy  
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  deeprechxy 
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  rechxy
+
+   !out 
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  t2mvxy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  t2mbxy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  q2mvxy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  q2mbxy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  tradxy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  neexy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  gppxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  nppxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  fvegxy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  runsfxy   
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  runsbxy   
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  ecanxy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  edirxy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  etranxy   
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  fsaxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  firaxy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  aparxy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  psnxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  savxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  sagxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  rssunxy   
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  rsshaxy   
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  bgapxy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  wgapxy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  tgvxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  tgbxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  chvxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  chbxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  shgxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  shcxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  shbxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  evgxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  evbxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  ghvxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  ghbxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  irgxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  ircxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  irbxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  trxy      
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  evcxy     
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  chleafxy  
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  chucxy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  chv2xy    
+    real(r8)  ,    dimension( ims:ime,          jms:jme ), intent(out  ) ::  chb2xy    
+    integer,  intent(in   )   ::     ids,ide, jds,jde, kds,kde,  &  
+         &                           ims,ime, jms,jme, kms,kme,  &  
+         &                           its,ite, jts,jte, kts,kte      
+
+    real(r8)                          :: cosz         
+    real(r8)                          :: lat          
+    real(r8)                          :: z_ml         
+    integer                             :: vegtyp       
+    integer                             :: soiltyp      
+    real(r8)                          :: fveg         
+    real(r8)                          :: fvgmax       
+    real(r8)                          :: tbot         
+    real(r8)                          :: t_ml         
+    real(r8)                          :: q_ml         
+    real(r8)                          :: u_ml         
+    real(r8)                          :: v_ml         
+    real(r8)                          :: swdn         
+    real(r8)                          :: lwdn         
+    real(r8)                          :: p_ml         
+    real(r8)                          :: psfc         
+    real(r8)                          :: prcp         
+    real(r8)                          :: prcpconv     
+    real(r8)                          :: prcpnonc     
+    real(r8)                          :: prcpshcv     
+    real(r8)                          :: prcpsnow     
+    real(r8)                          :: prcpgrpl     
+    real(r8)                          :: prcphail     
+    real(r8)                          :: prcpothr     
+    real(r8)                          :: fsh          
+    real(r8)                          :: ssoil        
+    real(r8)                          :: salb         
+    real(r8)                          :: fsno         
+    real(r8)  ,   dimension( 1:nsoil)         :: smceq        
+    real(r8)  ,   dimension( 1:nsoil)         :: smc          
+    real(r8)  ,   dimension( 1:nsoil)         :: smh2o        
+    real(r8)  ,   dimension(-2:nsoil)         :: stc          
+    real(r8)                          :: swe          
+    real(r8)                          :: sndpth       
+    real(r8)                          :: emissi       
+    real(r8)                          :: qsfc1d       
+    integer                             :: isnow        
+    real(r8)                          :: tv           
+    real(r8)                          :: tg           
+    real(r8)                          :: canice       
+    real(r8)                          :: canliq       
+    real(r8)                          :: eah          
+    real(r8)                          :: tah          
+    real(r8)                          :: cm           
+    real(r8)                          :: ch           
+    real(r8)                          :: fwet         
+    real(r8)                          :: sneqvo       
+    real(r8)                          :: albold       
+    real(r8)                          :: qsnow        
+    real(r8)                          :: wslake       
+    real(r8)                          :: zwt          
+    real(r8)                          :: wa           
+    real(r8)                          :: wt           
+    real(r8)                          :: smcwtd       
+    real(r8)                          :: deeprech     
+    real(r8)                          :: rech         
+    real(r8)  , dimension(-2:nsoil)           :: zsnso        
+    real(r8)  , dimension(-2:              0) :: snice        
+    real(r8)  , dimension(-2:              0) :: snliq        
+    real(r8)                          :: lfmass       
+    real(r8)                          :: rtmass       
+    real(r8)                          :: stmass       
+    real(r8)                          :: wood         
+    real(r8)                          :: grain        
+    real(r8)                          :: gdd        
+    real(r8)                          :: stblcp       
+    real(r8)                          :: fastcp       
+    real(r8)                          :: plai         
+    real(r8)                          :: psai         
+    real(r8)                          :: tauss        
+    real(r8)                          :: z0wrf        
+    real(r8)                          :: t2mv         
+    real(r8)                          :: t2mb         
+    real(r8)                          :: q2mv         
+    real(r8)                          :: q2mb         
+    real(r8)                          :: trad         
+    real(r8)                          :: nee          
+    real(r8)                          :: gpp          
+    real(r8)                          :: npp          
+    real(r8)                          :: fvegmp       
+    real(r8)                          :: runsf        
+    real(r8)                          :: runsb        
+    real(r8)                          :: ecan         
+    real(r8)                          :: etran        
+    real(r8)                          :: esoil        
+    real(r8)                          :: fsa          
+    real(r8)                          :: fira         
+    real(r8)                          :: apar         
+    real(r8)                          :: psn          
+    real(r8)                          :: sav          
+    real(r8)                          :: sag          
+    real(r8)                          :: rssun        
+    real(r8)                          :: rssha        
+    real(r8)                          :: bgap         
+    real(r8)                          :: wgap         
+    real(r8)                          :: tgv          
+    real(r8)                          :: tgb          
+    real(r8)                          :: chv          
+    real(r8)                          :: chb          
+    real(r8)                          :: irc          
+    real(r8)                          :: irg          
+    real(r8)                          :: shc          
+    real(r8)                          :: shg          
+    real(r8)                          :: evg          
+    real(r8)                          :: ghv          
+    real(r8)                          :: irb          
+    real(r8)                          :: shb          
+    real(r8)                          :: evb          
+    real(r8)                          :: ghb          
+    real(r8)                          :: tr           
+    real(r8)                          :: evc          
+    real(r8)                          :: chleaf       
+    real(r8)                          :: chuc         
+    real(r8)                          :: chv2         
+    real(r8)                          :: chb2         
+    real(r8)                          :: pahv    
+    real(r8)                          :: pahg    
+    real(r8)                          :: pahb    
+    real(r8)                          :: pah     
+    real(r8)                          :: fpice        
+    real(r8)                          :: fcev         
+    real(r8)                          :: fgev         
+    real(r8)                          :: fctr         
+    real(r8)                          :: qsnbot       
+    real(r8)                          :: ponding      
+    real(r8)                          :: ponding1     
+    real(r8)                          :: ponding2     
+    real(r8)                          :: fsr          
+    real(r8)  , dimension(-2:0)               :: ficeold      
+    real(r8)                          :: co2pp        
+    real(r8)                          :: o2pp         
+    real(r8)  , dimension(1:nsoil)            :: zsoil        
+    real(r8)                          :: foln         
+    real(r8)                          :: qc           
+    real(r8)                          :: pblh         
+    real(r8)                          :: dz8w1d 
+    real(r8)                          :: taux, tauy, fire  !---cheyz
+    real(r8)  ,    dimension( ims:ime,  jms:jme ), intent(out)  ::  taux2d, tauy2d, fire2d  !---cheyz
+    real(r8)  ,    dimension(1:2)    :: albd_out, albi_out        !---cheyz
+    real(r8)  ,    dimension( ims:ime, 1:2, jms:jme ), intent(out) :: albd2d, albi2d        !---cheyz
+
+    integer                             :: i
+    integer                             :: j
+    integer                             :: k
+    integer                             :: ice
+    integer                             :: slopetyp
+    logical                             :: iprint
+    integer                             :: soilcolor          
+    integer                             :: ist          
+    integer                             :: yearlen
+    integer, parameter                  :: nsnow = 3    
+    real(r8)  , parameter                     :: undefined_value = -1.e36
+    type(noahmp_parameters)             :: parameters
+
+
+    call noahmp_options(idveg  ,iopt_crs  ,iopt_btr  ,iopt_run  ,iopt_sfc  ,iopt_frz , &
+                     iopt_inf  ,iopt_rad  ,iopt_alb  ,iopt_snf  ,iopt_tbot, iopt_stc , &
+		     iopt_rsf )
+
+         
+
+    iprint    =  .false.                     
+
+    yearlen = 365                            
+#ifndef AMIPC_PHYSICS
+    if (mod(yr,4) == 0) then
+       yearlen = 366
+       if (mod(yr,100) == 0) then
+          yearlen = 365
+          if (mod(yr,400) == 0) then
+             yearlen = 366
+          endif
+       endif
+    endif
+#endif
+
+    zsoil(1) = -dzs(1)                    
+    do k = 2, nsoil
+       zsoil(k) = -dzs(k) + zsoil(k-1)
+    end do
+
+    jloop : do j=jts,jte
+
+       if(itimestep == 1)then
+          do i=its,ite
+             if((xland(i,j)-1.5) >= 0.) then    
+                if(xice(i,j) == 1. .and. iprint) print *,' sea-ice at water point, i=',i,'j=',j
+                smstav(i,j) = 1.0
+                smstot(i,j) = 1.0
+                do k = 1, nsoil
+                   smois(i,k,j) = 1.0
+                    tslb(i,k,j) = 273.16
+                enddo
+             else
+                if(xice(i,j) == 1.) then        
+                   smstav(i,j) = 1.0
+                   smstot(i,j) = 1.0
+                   do k = 1, nsoil
+                      smois(i,k,j) = 1.0
+                   enddo
+                endif
+             endif
+          enddo
+       endif                                                               
+
+      
+
+   iloop : do i = its, ite 
+
+    if (xice(i,j) >= xice_thres) then
+       ice = 1                            
+   
+    
+       sh2o  (i,1:nsoil,j) = 1.0
+       
+     
+       xlaixy(i,j)         = 0.01
+       
+       cycle iloop 
+    else
+    
+       if((xland(i,j)-1.5) >= 0.) cycle iloop   
+
+
+       cosz   = coszin  (i,j)    
+                     
+       lat    = xlatin  (i,j)                         
+       z_ml   = 0.5*dz8w(i,1,j)                       
+       vegtyp = ivgtyp(i,j)                           
+       soiltyp= isltyp(i,j)                           
+       fveg   = vegfra(i,j)/100.                      
+       fvgmax = vegmax (i,j)/100.                     
+       tbot = tmn(i,j)                                
+       t_ml   = t3d(i,1,j)                            
+       q_ml   = qv3d(i,1,j)  !/(1.0+qv3d(i,1,j))         
+       u_ml   = u_phy(i,1,j)                          
+       v_ml   = v_phy(i,1,j)                          
+       swdn   = swdown(i,j)                           
+       lwdn   = glw(i,j)   
+                              
+       p_ml   =(p8w3d(i,kts+1,j)+p8w3d(i,kts,j))*0.5  
+	                                              
+       psfc   = p8w3d(i,1,j)   
+ 
+       prcp   = precip_in (i,j) / dt                  
+
+
+       if (present(mp_rainc) .and. present(mp_rainnc) .and. present(mp_shcv) .and. &
+           present(mp_snow)  .and. present(mp_graup)  .and. present(mp_hail)   ) then
+
+         prcpconv  = mp_rainc (i,j)/dt                
+         prcpnonc  = mp_rainnc(i,j)/dt                
+         prcpshcv  = mp_shcv(i,j)  /dt                
+         prcpsnow  = mp_snow(i,j)  /dt                
+         prcpgrpl  = mp_graup(i,j) /dt                
+         prcphail  = mp_hail(i,j)  /dt                
+
+         prcpothr  = prcp - prcpconv - prcpnonc - prcpshcv 
+         prcpothr  = max(0.0,prcpothr)
+         prcpnonc  = prcpnonc + prcpothr
+         prcpsnow  = prcpsnow + sr(i,j)  * prcpothr 
+       else
+         prcpconv  = 0.
+         prcpnonc  = prcp
+         prcpshcv  = 0.
+         prcpsnow  = sr(i,j) * prcp
+         prcpgrpl  = 0.
+         prcphail  = 0.
+       endif
+
+       isnow                 = isnowxy (i,j)                
+       smc  (      1:nsoil)  = smois   (i,      1:nsoil,j)  
+       smh2o(      1:nsoil)  = sh2o    (i,      1:nsoil,j)  
+       stc  (-nsnow+1:    0) = tsnoxy  (i,-nsnow+1:    0,j) 
+       stc  (      1:nsoil)  = tslb    (i,      1:nsoil,j)  
+       swe                   = snow    (i,j)                
+       sndpth                = snowh   (i,j)                
+       qsfc1d                = qsfc    (i,j)
+       tv                    = tvxy    (i,j)                
+       tg                    = tgxy    (i,j)                
+       canliq                = canliqxy(i,j)                
+       canice                = canicexy(i,j)                
+       eah                   = eahxy   (i,j)                
+       tah                   = tahxy   (i,j)                
+       cm                    = cmxy    (i,j)                
+       ch                    = chxy    (i,j)                
+       fwet                  = fwetxy  (i,j)                
+       sneqvo                = sneqvoxy(i,j)                
+       albold                = alboldxy(i,j)                
+       qsnow                 = qsnowxy (i,j)                
+       wslake                = wslakexy(i,j)                
+       zwt                   = zwtxy   (i,j)                
+       wa                    = waxy    (i,j)                
+       wt                    = wtxy    (i,j)                
+       zsnso(-nsnow+1:nsoil) = zsnsoxy (i,-nsnow+1:nsoil,j) 
+       snice(-nsnow+1:    0) = snicexy (i,-nsnow+1:    0,j) 
+       snliq(-nsnow+1:    0) = snliqxy (i,-nsnow+1:    0,j) 
+       lfmass                = lfmassxy(i,j)                
+       rtmass                = rtmassxy(i,j)                
+       stmass                = stmassxy(i,j)                
+       wood                  = woodxy  (i,j)                
+       grain                 = grainxy (i,j)                
+       gdd                   = gddxy (i,j)                  
+       stblcp                = stblcpxy(i,j)                
+       fastcp                = fastcpxy(i,j)                
+       plai                  = xlaixy  (i,j)                
+       psai                  = xsaixy  (i,j)                
+       tauss                 = taussxy (i,j)                
+       smceq(       1:nsoil) = smoiseq (i,       1:nsoil,j)
+       smcwtd                = smcwtdxy(i,j)
+       rech                  = 0.
+       deeprech              = 0.
+
+       slopetyp     = 1                               
+       ist          = 1                               
+       soilcolor    = 4                               
+ 
+
+       if(soiltyp == 14 .and. xice(i,j) == 0.) then
+          if(iprint) print *, ' soil type found to be water at a land-point'
+          if(iprint) print *, i,j,'reset soil in surfce.f'
+          soiltyp = 7
+       endif
+       !--cheyz
+       !PRINT*, "vegtyp,soiltyp,slopetyp=",vegtyp,soiltyp,slopetyp
+
+       call transfer_mp_parameters(vegtyp,soiltyp,slopetyp,soilcolor,parameters)
+
+       ficeold = 0.0
+       ficeold(isnow+1:0) = snicexy(i,isnow+1:0,j) &  
+           /(snicexy(i,isnow+1:0,j)+snliqxy(i,isnow+1:0,j))
+       co2pp  = co2_table * p_ml                      
+       o2pp   = o2_table  * p_ml                      
+       foln   = 1.0                                   
+       qc     = undefined_value                       
+       pblh   = undefined_value                       
+       dz8w1d = dz8w (i,1,j)                          
+
+       if(vegtyp == 25) fveg = 0.0                  
+       if(vegtyp == 25) plai = 0.0 
+       if(vegtyp == 26) fveg = 0.0                  
+       if(vegtyp == 26) plai = 0.0
+       if(vegtyp == 27) fveg = 0.0
+       if(vegtyp == 27) plai = 0.0
+
+       if ( vegtyp == isice_table ) then
+         ice = -1                           
+         call noahmp_options_glacier(iopt_alb  ,iopt_snf  ,iopt_tbot, iopt_stc, iopt_gla )
+      
+         tbot = min(tbot,263.15)                      
+         call noahmp_glacier(     i,       j,    cosz,   nsnow,   nsoil,      dt, & 
+                               t_ml,    p_ml,    u_ml,    v_ml,    q_ml,    swdn, & 
+                               prcp,    lwdn,    tbot,    z_ml, ficeold,   zsoil, & 
+                              qsnow,  sneqvo,  albold,      cm,      ch,   isnow, & 
+                                swe,     smc,   zsnso,  sndpth,   snice,   snliq, & 
+                                 tg,     stc,   smh2o,   tauss,  qsfc1d,          & 
+                                fsa,     fsr,    fira,     fsh,    fgev,   ssoil, & 
+                               trad,   esoil,   runsf,   runsb,     sag,    salb, & 
+                              qsnbot,ponding,ponding1,ponding2,    t2mb,    q2mb, & 
+                             emissi,   fpice,    chb2,                            &                             
+                               taux,    tauy,    fire, albd_out,  albi_out)   !--cheyz   
+               
+                            
+         
+         fsno   = 1.0       
+         tv     = undefined_value     
+         tgb    = tg 
+         canice = undefined_value 
+         canliq = undefined_value 
+         eah    = undefined_value 
+         tah    = undefined_value
+         fwet   = undefined_value 
+         wslake = undefined_value 
+         zwt    = undefined_value 
+         wa     = undefined_value 
+         wt     = undefined_value 
+         lfmass = undefined_value 
+         rtmass = undefined_value 
+         stmass = undefined_value 
+         wood   = undefined_value 
+         grain  = undefined_value
+         gdd    = undefined_value
+         stblcp = undefined_value 
+         fastcp = undefined_value 
+         plai   = undefined_value 
+         psai   = undefined_value 
+         t2mv   = undefined_value 
+         q2mv   = undefined_value 
+         nee    = undefined_value 
+         gpp    = undefined_value 
+         npp    = undefined_value 
+         fvegmp = 0.0 
+         ecan   = undefined_value 
+         etran  = undefined_value 
+         apar   = undefined_value 
+         psn    = undefined_value 
+         sav    = undefined_value 
+         rssun  = undefined_value 
+         rssha  = undefined_value 
+         bgap   = undefined_value 
+         wgap   = undefined_value 
+         tgv    = undefined_value
+         chv    = undefined_value 
+         chb    = ch 
+         irc    = undefined_value 
+         irg    = undefined_value 
+         shc    = undefined_value 
+         shg    = undefined_value 
+         evg    = undefined_value 
+         ghv    = undefined_value 
+         irb    = fira
+         shb    = fsh
+         evb    = fgev
+         ghb    = ssoil
+         tr     = undefined_value 
+         evc    = undefined_value 
+         chleaf = undefined_value 
+         chuc   = undefined_value 
+         chv2   = undefined_value 
+         fcev   = undefined_value 
+         fctr   = undefined_value        
+         z0wrf  = 0.002
+         qfx(i,j) = esoil
+         lh (i,j) = fgev
+         taux2d(i,j) =taux  !--cheyz 04/27
+         tauy2d(i,j) =tauy
+         fire2d(i,j) =fire
+         albd2d(i,:,j)=albd_out(1:2)
+         albi2d(i,:,j)=albi_out(1:2)
+
+    else
+         ice=0                              
+         call noahmp_sflx (parameters, &
+            i       , j       , lat     , yearlen , julian  , cosz    , & 
+            dt      , dx      , dz8w1d  , nsoil   , zsoil   , nsnow   , & 
+            fveg    , fvgmax  , vegtyp  , ice     , ist     ,           & 
+            smceq   ,                                                   & 
+            t_ml    , p_ml    , psfc    , u_ml    , v_ml    , q_ml    , & 
+            qc      , swdn    , lwdn    ,                               & 
+	         prcpconv, prcpnonc, prcpshcv, prcpsnow, prcpgrpl, prcphail, & 
+            tbot    , co2pp   , o2pp    , foln    , ficeold , z_ml    , & 
+            albold  , sneqvo  ,                                         & 
+            stc     , smh2o   , smc     , tah     , eah     , fwet    , & 
+            canliq  , canice  , tv      , tg      , qsfc1d  , qsnow   , & 
+            isnow   , zsnso   , sndpth  , swe     , snice   , snliq   , & 
+            zwt     , wa      , wt      , wslake  , lfmass  , rtmass  , & 
+            stmass  , wood    , stblcp  , fastcp  , plai    , psai    , & 
+            cm      , ch      , tauss   ,                               & 
+            grain   , gdd     ,                                         & 
+            smcwtd  ,deeprech , rech    ,                               & 
+            z0wrf   ,                                                   &
+            fsa     , fsr     , fira    , fsh     , ssoil   , fcev    , & 
+            fgev    , fctr    , ecan    , etran   , esoil   , trad    , & 
+            tgb     , tgv     , t2mv    , t2mb    , q2mv    , q2mb    , & 
+            runsf   , runsb   , apar    , psn     , sav     , sag     , & 
+            fsno    , nee     , gpp     , npp     , fvegmp  , salb    , & 
+            qsnbot  , ponding , ponding1, ponding2, rssun   , rssha   , & 
+            bgap    , wgap    , chv     , chb     , emissi  ,           & 
+            shg     , shc     , shb     , evg     , evb     , ghv     , & 
+	         ghb     , irg     , irc     , irb     , tr      , evc     , & 
+	         chleaf  , chuc    , chv2    , chb2    , fpice   , pahv    , & 
+            pahg    , pahb    , pah,                                     &
+            taux, tauy, fire, albd_out,albi_out)   !--cheyz         
+                  
+            qfx   (i,j) = ecan + esoil + etran
+            lh    (i,j) = fcev + fgev + fctr
+
+            taux2d(i,j) =taux  !--cheyz
+            tauy2d(i,j) =tauy
+            fire2d(i,j) =fire
+            albd2d(i,:,j)=albd_out(1:2)
+            albi2d(i,:,j)=albi_out(1:2)
+
+   endif 
+
+             tsk      (i,j)                = trad
+             hfx      (i,j)                = fsh
+             grdflx   (i,j)                = ssoil
+	          smstav   (i,j)                = 0.0  
+             smstot   (i,j)                = 0.0  
+             sfcrunoff(i,j)                = sfcrunoff(i,j) + runsf * dt
+             udrunoff (i,j)                = udrunoff(i,j)  + runsb * dt
+             if ( salb > -999 ) then
+                albedo(i,j)                = salb
+             endif
+             snowc    (i,j)                = fsno
+             smois    (i,      1:nsoil,j)  = smc   (      1:nsoil)
+             sh2o     (i,      1:nsoil,j)  = smh2o (      1:nsoil)
+             tslb     (i,      1:nsoil,j)  = stc   (      1:nsoil)
+             snow     (i,j)                = swe
+             snowh    (i,j)                = sndpth
+             canwat   (i,j)                = canliq + canice
+             acsnow   (i,j)                = acsnow(i,j) +  precip_in(i,j) * fpice
+             acsnom   (i,j)                = acsnom(i,j) + qsnbot*dt + ponding + ponding1 + ponding2
+             emiss    (i,j)                = emissi
+             qsfc     (i,j)                = qsfc1d
+
+             isnowxy  (i,j)                = isnow
+             tvxy     (i,j)                = tv
+             tgxy     (i,j)                = tg
+             canliqxy (i,j)                = canliq
+             canicexy (i,j)                = canice
+             eahxy    (i,j)                = eah
+             tahxy    (i,j)                = tah
+             cmxy     (i,j)                = cm
+             chxy     (i,j)                = ch
+             fwetxy   (i,j)                = fwet
+             sneqvoxy (i,j)                = sneqvo
+             alboldxy (i,j)                = albold
+             qsnowxy  (i,j)                = qsnow
+             wslakexy (i,j)                = wslake
+             zwtxy    (i,j)                = zwt
+             waxy     (i,j)                = wa
+             wtxy     (i,j)                = wt
+             tsnoxy   (i,-nsnow+1:    0,j) = stc   (-nsnow+1:    0)
+             zsnsoxy  (i,-nsnow+1:nsoil,j) = zsnso (-nsnow+1:nsoil)
+             snicexy  (i,-nsnow+1:    0,j) = snice (-nsnow+1:    0)
+             snliqxy  (i,-nsnow+1:    0,j) = snliq (-nsnow+1:    0)
+             lfmassxy (i,j)                = lfmass
+             rtmassxy (i,j)                = rtmass
+             stmassxy (i,j)                = stmass
+             woodxy   (i,j)                = wood
+             grainxy  (i,j)                = grain 
+             gddxy    (i,j)                = gdd   
+             stblcpxy (i,j)                = stblcp
+             fastcpxy (i,j)                = fastcp
+             xlaixy   (i,j)                = plai
+             xsaixy   (i,j)                = psai
+             taussxy  (i,j)                = tauss
+             z0       (i,j)                = z0wrf
+             znt      (i,j)                = z0wrf
+             t2mvxy   (i,j)                = t2mv
+             t2mbxy   (i,j)                = t2mb
+             q2mvxy   (i,j)                = q2mv/(1.0 - q2mv)  
+             q2mbxy   (i,j)                = q2mb/(1.0 - q2mb)  
+             tradxy   (i,j)                = trad
+             neexy    (i,j)                = nee
+             gppxy    (i,j)                = gpp
+             nppxy    (i,j)                = npp
+             fvegxy   (i,j)                = fvegmp
+             runsfxy  (i,j)                = runsf
+             runsbxy  (i,j)                = runsb
+             ecanxy   (i,j)                = ecan
+             edirxy   (i,j)                = esoil
+             etranxy  (i,j)                = etran
+             fsaxy    (i,j)                = fsa
+             firaxy   (i,j)                = fira
+             aparxy   (i,j)                = apar
+             psnxy    (i,j)                = psn
+             savxy    (i,j)                = sav
+             sagxy    (i,j)                = sag
+             rssunxy  (i,j)                = rssun
+             rsshaxy  (i,j)                = rssha
+             bgapxy   (i,j)                = bgap
+             wgapxy   (i,j)                = wgap
+             tgvxy    (i,j)                = tgv
+             tgbxy    (i,j)                = tgb
+             chvxy    (i,j)                = chv
+             chbxy    (i,j)                = chb
+             ircxy    (i,j)                = irc
+             irgxy    (i,j)                = irg
+             shcxy    (i,j)                = shc
+             shgxy    (i,j)                = shg
+             evgxy    (i,j)                = evg
+             ghvxy    (i,j)                = ghv
+             irbxy    (i,j)                = irb
+             shbxy    (i,j)                = shb
+             evbxy    (i,j)                = evb
+             ghbxy    (i,j)                = ghb
+             trxy     (i,j)                = tr
+             evcxy    (i,j)                = evc
+             chleafxy (i,j)                = chleaf
+             chucxy   (i,j)                = chuc
+             chv2xy   (i,j)                = chv2
+             chb2xy   (i,j)                = chb2
+             rechxy   (i,j)                = rechxy(i,j) + rech*1.e3 
+             deeprechxy(i,j)               = deeprechxy(i,j) + deeprech
+             smcwtdxy(i,j)                 = smcwtd
+
+          endif                                                         
+
+      enddo iloop  
+                              
+   enddo jloop                                                          
+   
+
+end subroutine noahmplsm
+
+
+subroutine transfer_mp_parameters(vegtype,soiltype,slopetype,soilcolor,parameters)
+
+  use noahmp_tables
+  use module_sf_noahmplsm
+
+  implicit none
+
+  integer, intent(in)    :: vegtype
+  integer, intent(in)    :: soiltype
+  integer, intent(in)    :: slopetype
+  integer, intent(in)    :: soilcolor
+    
+  type (noahmp_parameters), intent(inout) :: parameters
+    
+  real(r8)                          :: refdk
+  real(r8)                          :: refkdt
+  real(r8)                          :: frzk
+  real(r8)                          :: frzfact
+
+  parameters%iswater   =   iswater_table
+  parameters%isbarren  =  isbarren_table
+  parameters%isice     =     isice_table
+  parameters%eblforest = eblforest_table
+
+  parameters%urban_flag = .false.
+  if( vegtype == isurban_table                  .or. vegtype == low_density_residential_table  .or. &
+      vegtype == high_density_residential_table .or. vegtype == high_intensity_industrial_table ) then
+     parameters%urban_flag = .true.
+  endif
+!   PRINT*, "vegtype=",vegtype
+  ! PRINT*,"parameters%urban_flag=",parameters%urban_flag
+    
+  parameters%ch2op  =  ch2op_table(vegtype)  
+  parameters%dleaf  =  dleaf_table(vegtype)       
+  parameters%z0mvt  =  z0mvt_table(vegtype)       
+  parameters%hvt    =    hvt_table(vegtype)       
+  parameters%hvb    =    hvb_table(vegtype)       
+  parameters%den    =    den_table(vegtype)       
+  parameters%rc     =     rc_table(vegtype)       
+  parameters%mfsno  =  mfsno_table(vegtype)  
+      
+  parameters%saim   =   saim_table(vegtype,:)     
+  parameters%laim   =   laim_table(vegtype,:)     
+  parameters%sla    =    sla_table(vegtype)       
+  parameters%dilefc = dilefc_table(vegtype)       
+  parameters%dilefw = dilefw_table(vegtype)       
+  parameters%fragr  =  fragr_table(vegtype)       
+  parameters%ltovrc = ltovrc_table(vegtype)       
+
+  parameters%c3psn  =  c3psn_table(vegtype)       
+  parameters%kc25   =   kc25_table(vegtype)       
+  parameters%akc    =    akc_table(vegtype)       
+  parameters%ko25   =   ko25_table(vegtype)       
+  parameters%ako    =    ako_table(vegtype)       
+  parameters%vcmx25 = vcmx25_table(vegtype)       
+  parameters%avcmx  =  avcmx_table(vegtype)       
+  parameters%bp     =     bp_table(vegtype)       
+  parameters%mp     =     mp_table(vegtype)       
+  parameters%qe25   =   qe25_table(vegtype)       
+  parameters%aqe    =    aqe_table(vegtype)       
+  parameters%rmf25  =  rmf25_table(vegtype)       
+  parameters%rms25  =  rms25_table(vegtype)       
+  parameters%rmr25  =  rmr25_table(vegtype)       
+  parameters%arm    =    arm_table(vegtype)       
+  parameters%folnmx = folnmx_table(vegtype)       
+  parameters%tmin   =   tmin_table(vegtype)       
+  parameters%xl     =     xl_table(vegtype)       
+  parameters%rhol   =   rhol_table(vegtype,:)     
+  parameters%rhos   =   rhos_table(vegtype,:)     
+  parameters%taul   =   taul_table(vegtype,:)     
+  parameters%taus   =   taus_table(vegtype,:)     
+  parameters%mrp    =    mrp_table(vegtype)       
+  parameters%cwpvt  =  cwpvt_table(vegtype)       
+  parameters%wrrat  =  wrrat_table(vegtype)       
+  parameters%wdpool = wdpool_table(vegtype)       
+  parameters%tdlef  =  tdlef_table(vegtype)       
+  parameters%nroot  =  nroot_table(vegtype)       
+  parameters%rgl    =    rgl_table(vegtype)       
+  parameters%rsmin  =     rs_table(vegtype)       
+  parameters%hs     =     hs_table(vegtype)       
+  parameters%topt   =   topt_table(vegtype)       
+  parameters%rsmax  =  rsmax_table(vegtype)       
+ 
+   parameters%albsat    = albsat_table(soilcolor,:)
+   parameters%albdry    = albdry_table(soilcolor,:)
+   parameters%albice    = albice_table
+   parameters%alblak    = alblak_table               
+   parameters%omegas    = omegas_table
+   parameters%betads    = betads_table
+   parameters%betais    = betais_table
+   parameters%eg        = eg_table
+   parameters%pltday    =    pltday_table(1)    
+   parameters%hsday     =     hsday_table(1)    
+   parameters%plantpop  =  plantpop_table(1)    
+   parameters%irri      =      irri_table(1)    
+   parameters%gddtbase  =  gddtbase_table(1)    
+   parameters%gddtcut   =   gddtcut_table(1)    
+   parameters%gdds1     =     gdds1_table(1)    
+   parameters%gdds2     =     gdds2_table(1)    
+   parameters%gdds3     =     gdds3_table(1)    
+   parameters%gdds4     =     gdds4_table(1)    
+   parameters%gdds5     =     gdds5_table(1)    
+   parameters%c3c4      =      c3c4_table(1)    
+   parameters%aref      =      aref_table(1)    
+   parameters%psnrf     =     psnrf_table(1)    
+   parameters%i2par     =     i2par_table(1)    
+   parameters%tassim0   =   tassim0_table(1)    
+   parameters%tassim1   =   tassim1_table(1)    
+   parameters%tassim2   =   tassim2_table(1)    
+   parameters%k         =         k_table(1)    
+   parameters%epsi      =      epsi_table(1)    
+   parameters%q10mr     =     q10mr_table(1)    
+   parameters%foln_mx   =   foln_mx_table(1)    
+   parameters%lefreez   =   lefreez_table(1)    
+   parameters%dile_fc   =   dile_fc_table(1,:)  
+   parameters%dile_fw   =   dile_fw_table(1,:)  
+   parameters%fra_gr    =    fra_gr_table(1)    
+   parameters%lf_ovrc   =   lf_ovrc_table(1,:)  
+   parameters%st_ovrc   =   st_ovrc_table(1,:)  
+   parameters%rt_ovrc   =   rt_ovrc_table(1,:)  
+   parameters%lfmr25    =    lfmr25_table(1)    
+   parameters%stmr25    =    stmr25_table(1)    
+   parameters%rtmr25    =    rtmr25_table(1)    
+   parameters%grainmr25 = grainmr25_table(1)    
+   parameters%lfpt      =      lfpt_table(1,:)  
+   parameters%stpt      =      stpt_table(1,:)  
+   parameters%rtpt      =      rtpt_table(1,:)  
+   parameters%grainpt   =   grainpt_table(1,:)  
+   parameters%bio2lai   =   bio2lai_table(1)   
+   parameters%co2        =         co2_table
+   parameters%o2         =          o2_table
+   parameters%timean     =      timean_table
+   parameters%fsatmx     =      fsatmx_table
+   parameters%z0sno      =       z0sno_table
+   parameters%ssi        =         ssi_table
+   parameters%swemx      =       swemx_table
+   parameters%rsurf_snow =  rsurf_snow_table
+
+    parameters%bexp   = bexp_table   (soiltype)
+    parameters%dksat  = dksat_table  (soiltype)
+    parameters%dwsat  = dwsat_table  (soiltype)
+    parameters%f1     = f1_table     (soiltype)
+    parameters%psisat = psisat_table (soiltype)
+    parameters%quartz = quartz_table (soiltype)
+    parameters%smcdry = smcdry_table (soiltype)
+    parameters%smcmax = smcmax_table (soiltype)
+    parameters%smcref = smcref_table (soiltype)
+    parameters%smcwlt = smcwlt_table (soiltype)
+    parameters%refdk  = refdk_table
+    parameters%refkdt = refkdt_table
+    parameters%csoil  = csoil_table
+    parameters%zbot   = zbot_table
+    parameters%czil   = czil_table
+
+    frzk   = frzk_table
+    parameters%kdt    = parameters%refkdt * parameters%dksat(1) / parameters%refdk
+    parameters%slope  = slope_table(slopetype)
+
+    if(parameters%urban_flag)then  
+       parameters%smcmax = 0.45 
+       parameters%smcref = 0.42 
+       parameters%smcwlt = 0.40 
+       parameters%smcdry = 0.40 
+       parameters%csoil  = 3.e6
+    endif
+
+    if(soiltype /= 14) then
+      frzfact = (parameters%smcmax(1) / parameters%smcref(1)) * (0.412 / 0.468)
+      parameters%frzx = frzk * frzfact
+    end if
+
+ end subroutine transfer_mp_parameters
+
+ 
+
+
+
+
+
+
+
+
+end module module_sf_noahmpdrv
