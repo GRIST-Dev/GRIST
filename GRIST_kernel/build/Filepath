@@ -1,0 +1,9 @@
+../src/infrastructure/core/io/
+../src/infrastructure/core/operators/
+../src/infrastructure/core/setting/
+../src/infrastructure/core/utils/
+../src/infrastructure/grid/
+../src/infrastructure/namelist/
+../src/grist_lib/src/
+../src/swe/operator/
+../src/swe/

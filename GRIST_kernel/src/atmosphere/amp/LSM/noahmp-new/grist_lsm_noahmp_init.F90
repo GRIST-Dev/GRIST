@@ -1,0 +1,250 @@
+!--cheyz  2020/05/07
+!*********************************************
+
+module grist_lsm_noahmp_init
+
+    use noahmp_tables,            only: read_landuse_tbl, albd, scfx
+    use module_sf_noahmpdrv
+    !use phys_control,                     only: lsm_scheme
+    use grist_lsm_noahmp_vars  
+    use noahmp_nml_control      
+    use module_sf_noahmp_init,            only: noahmp_init
+    
+    use grist_mpi
+    use grist_data_types
+    ! datam, static and inital data 
+    use grist_datam_static_data_module,   only: staticData_phis_at_pc_surface,staticData_albedo_at_pc_surface                   , &
+                                                staticData_luIndex_at_pc_surface,  staticData_annual_deep_soilTemp_at_pc_surface, &
+                                                staticData_greenfrac_at_pc_surface,staticData_soilTypetop_at_pc_surface         , &
+                                                staticData_landfrac_at_pc_surface, staticData_sic_at_pc_surface
+    use grist_datam_initial_data_module,  only: & !initialData_uuu_at_pc_full_level	    , &
+                                                !initialData_vvv_at_pc_full_level	    , &
+                                                !initialData_ttt_at_pc_full_level	    , &
+                                                !initialData_qqq_at_pc_full_level	    , &
+                                                initialData_skintemp_at_pc_surface	    , &
+                                                !initialData_ps_at_pc_surface	        , &
+                                                !initialData_seaice_at_pc_surface	    , &
+                                                !initialData_xice_at_pc_surface	        , &
+                                                initialData_snow_at_pc_surface	        , &
+                                                initialData_snowh_at_pc_surface	        , &
+                                                initialData_soiltemp_at_pc_soil_level	, &
+                                                initialData_soilmoist_at_pc_soil_level	, &
+                                                initialData_soilh_at_pc_surface
+                                                !lat	, lon,   &
+    use grist_lnd_static_vars_module
+    !use grist_zenith,                     only: zenith, orb_decl
+    !use grist_physics_data_structure,     only: pstate !%z_at_pc_face_level  ! change to input var later
+    use grist_time_manager,               only: get_curr_date  
+    use grist_nml_module,                 only: start_ymd, start_tod, model_timestep
+    use grist_constants,                  only: r8, gravity
+
+    !use grist_dycore_vars_module
+
+    use grist_lsm_noahmp_driver,         only:  lsm_noahmp_from_grist,  &
+                                                lsm_noahmp_to_grist,    &
+                                                monthly_interp_to_date, &
+                                                monthly_min_max,        &
+                                                get_julgmt
+                                      
+
+
+        implicit none
+       
+  
+    
+        logical          :: FNDSOILW , FNDSNOWH   
+        integer          :: EM_CORE=2
+        integer,parameter:: sf_urban_physics = 0 !activate urban canopy model (=0: no urban canopy) 
+       
+      
+        contains
+       
+
+       !=================================================================================================================
+        subroutine lsm_noahmp_init (ncol, nlev, nsoil, lat, lon)
+       !=================================================================================================================
+        implicit none 
+        integer,intent(in)                      :: ncol,nlev, nsoil
+        real(r8)                                :: lat(ncol), lon(ncol)
+        integer                                 :: itimestep, ierr 
+        character(len=24)                       :: currentdate 
+        integer                                 :: julyr, julian, i, j, k,ii
+        real(r8)                                :: gmt
+        character(len=300)                      :: filename
+       
+        real(r8),dimension(     ncol)           :: swd2d, glw2d, preci2d
+        real(r8),dimension(     ncol)           :: lwup,shflx,qflx,taux,tauy
+        real(r8),dimension(     ncol)           :: albdvis,albivis, albdnir, albinir
+
+        integer                                 :: yr, mn, dy, sc, hour, minute, second
+     
+
+        !--local vars
+        !integer, parameter                      :: max_cats = 100 , max_seas = 12, luseas=2, lucats=33
+        !real(r8), dimension(max_cats, max_seas) :: albd, slmo, sfem, sfz0, therin, sfhc
+        !real(r8), dimension(max_cats)           :: scfx, li
+        real(r8)                                :: diff_Height
+        integer , parameter                     :: iswater=17, isice=15
+        integer                                 :: ls, lc,  isn, iskip, ilu
+        
+            ! calcultion of the current_date  with specific form--
+            call get_curr_date(start_ymd, start_tod, 0, model_timestep, yr, mn, dy, sc)  !0: first-step
+            hour=int(sc/3600.)
+            minute=int((sc-hour*3600)/60.)
+            second=sc-hour*3600-minute*60
+            currentdate =''
+            write(currentdate(1:19), fmt='(i4.4, 5(a1, i2.2))') yr,'-', mn,'-', dy,'_', hour, ':',minute,':', second
+    
+      
+            filename='grist_lsm_noahmp.nml'
+            call read_nml_noahmp(filename)
+            call lsm_noahmp_init_domain(ncol, nlev)         ! for determining the array size
+            call allocate_lsm_noahmp_1d(ncol, nlev, nsoil)
+        
+            dzs     =   dzs1
+            ! copy data from static.nc
+            isltyp  =   staticData_soilTypetop_at_pc_surface%f(1:ncol)
+            ivgtyp  =   staticData_luIndex_at_pc_surface%f(1:ncol)
+            tmn     =   staticData_annual_deep_soilTemp_at_pc_surface%f(1:ncol)
+            xland   =   2-staticData_landfrac_at_pc_surface%f(1:ncol)   ! 2: ocean or water 1: land     
+            greenfrac=  staticData_greenfrac_at_pc_surface%f(1:12,1:ncol)
+            xlatin   =  lat(1:ncol)
+            xlongin  =  lon(1:ncol)
+                
+        
+            ! copy data from init_condition.nc at first time, 
+            tslb    =   initialData_soiltemp_at_pc_soil_level%f(1:nsoil,1:ncol)
+            smois   =   initialData_soilmoist_at_pc_soil_level%f(1:nsoil,1:ncol)
+            sh2o    =   smois
+            !  
+            tsk     =   initialData_skintemp_at_pc_surface%f(1:ncol)
+            !xice    =   initialData_xice_at_pc_surface%f(1:ncol)
+            xice    =   staticData_sic_at_pc_surface%f(1:ncol)
+            snow    =   initialData_snow_at_pc_surface%f(1:ncol)
+            snowh   =   initialData_snowh_at_pc_surface%f(1:ncol)
+
+            call allocate_lsm_noahmp_2d(ncol, nlev, nsoil)
+            call lsm_noahmp_from_grist()   ! convert grsit vars to noahmp vars
+ 
+            !--------------------------------------------------------------
+            xice_thres_1d=0.5 ! alawys??
+            canwat_2d=0. !always??
+            fndsoilw=.false.; 
+            !fndsnowh=.false.
+
+            precip_in_2d=0.0  ! no need at initial part
+            sr_2d       =0.0  ! 
+      
+            call monthly_min_max ( greenfrac_2d , vegmax_2d , &
+                                            ids , ide , jds , jde , kds , kde , &
+                                            ims , ime , jms , jme , kms , kme , &
+                                            its , ite , jts , jte , kts , kte )
+            call monthly_interp_to_date ( greenfrac_2d , currentdate, vegfra_2d , &
+                                            ids , ide , jds , jde , kds , kde , &
+                                            ims , ime , jms , jme , kms , kme , &
+                                            its , ite , jts , jte , kts , kte )
+                   
+            
+            do j = jts,jte; do k = 1, 12 ;do i = its,ite
+                st_albedo_2d (i,k,j)    = staticData_albedo_at_pc_surface%f (k,i)            
+            end do; end do; end do
+            call monthly_interp_to_date ( st_albedo_2d , currentdate, albedo_2d , &
+                                    ids , ide , jds , jde , kds , kde , &
+                                    ims , ime , jms , jme , kms , kme , &
+                                    its , ite , jts , jte , kts , kte )
+            albedo_2d=albedo_2d/100.0_r8  ! %->  As an optin, tt should be further revised by combining  SNOALB
+
+            ! !--initial albedo according to the LANDUSE.TBL: 2020/05/11
+
+            ! Determine season 1: summer  2: winter 
+            call get_julgmt(currentdate,julyr,julian,gmt)
+            isn=1
+            if(julian.lt.105.or.julian.gt.288)isn=2
+            ! if(cen_lat.lt.0.0)isn=3-isns
+          
+            call read_landuse_tbl
+ 
+                do j = jts, jte
+                    do i = its, ite
+                        if ( snow_2d(i,j) .ge. 10. ) then
+                            snowc_2d(i,j) = 1.
+                            else
+                            snowc_2d(i,j) = 0.0
+                        end if
+                          ilu= ivgtyp_2d(i,j)
+                          !  set no-data points to water
+                          if(ilu==0)then
+                            ilu=iswater
+                          end if
+                         
+                           albedo_2d(i,j)= albd(ilu,isn)/100._r8  
+                          if(snowc_2d(i,j) .gt. 0.5) then             
+                            albedo_2d(i,j)= albedo_2d(i,j)*(1.+scfx(ilu))
+                          end if
+          
+                          if(xice_2d(i,j).ge.xice_thres_1d)then
+                            xland_2d(i,j)=1.0  !change to land?
+                            albedo_2d(i,j)=albd(isice,isn)/100._r8  
+                          endif
+                    enddo
+                enddo
+
+#ifdef AMIPC_PHYSICS
+                 ! adjust the annual mean temperature as if it is based on from a sea-level elevation 
+                 ! Whether need or not??
+                 if(.true.) then
+                     do j = jts, jte
+                         do i = its, ite
+                         if (xland_2d(i,j) .lt. 1.5 ) then
+                             tmn_2d(i,j) = tmn_2d(i,j) - 0.0065 * staticData_phis_at_pc_surface%f(i)/gravity
+                         end if
+                         end do
+                     end do
+                 end if 
+#endif
+
+                do j = jts,jte; do i = its,ite
+                    diff_Height=staticData_phis_at_pc_surface%f(i)/gravity-initialData_soilh_at_pc_surface%f(i)
+                    !if( (abs(diff_Height) > 3000.)  .and.  (xland_2d(i,j) .lt. 1.5) ) then    
+                    if( (abs(diff_Height) > 4000.)  .and.  (xland_2d(i,j) .lt. 1.5) ) then    
+                        print*, "diff=",diff_Height,"difference between the terrain elevation and soil height more than 4000 m, unrealistic"
+                        stop
+                    else
+                        !print*, "adjust the tsk, and soil temp using a -6.5 K/km lapse rate"
+                        tsk_2d(i,j) = tsk_2d(i,j) - 0.0065 *diff_Height
+                        do k=1, nsoil
+                            tslb_2d(i,k,j)=tslb_2d(i,k,j) - 0.0065 *diff_Height
+                        end do
+                    end if
+                end do;  end do
+                
+ 
+            !-------initialize noahmp------
+                call noahmp_init('modified_igbp_modis_noah', snow_2d, snowh_2d, canwat_2d, isltyp_2d,   ivgtyp_2d,  &  ! mminlu='igbp'              
+                tslb_2d, smois_2d, sh2o_2d, dzs_2d, fndsoilw, fndsnowh,                                 &
+                tsk_2d, isnowxy_2d, tvxy_2d, tgxy_2d, canicexy_2d,  tmn_2d,     xice_2d,                &
+                canliqxy_2d, eahxy_2d, tahxy_2d, cmxy_2d, chxy_2d,                                      &
+                fwetxy_2d,sneqvoxy_2d,alboldxy_2d,qsnowxy_2d,wslakexy_2d,zwtxy_2d,waxy_2d,              &
+                wtxy_2d,tsnoxy_2d,zsnsoxy_2d,snicexy_2d,snliqxy_2d,lfmassxy_2d,rtmassxy_2d,             &
+                stmassxy_2d,woodxy_2d,stblcpxy_2d,fastcpxy_2d,xsaixy_2d,lai,                            &
+                grainxy_2d,gddxy_2d,                                                                    & 
+                t2mvxy_2d,t2mbxy_2d,chstarxy,                                                           &  
+                nsoil, .false.,                                                                         &  ! restart=false  current
+                iopt_run,                                                                               &  ! 3
+                ids,ide, jds,jde, kds,kde,                                                              &
+                ims,ime, jms,jme, kms,kme,                                                              &
+                its,ite, jts,jte, kts,kte                                                               &
+#if (EM_CORE == 1)
+                ,smoiseq ,smcwtdxy ,rechxy   ,deeprechxy, areaxy ,dx, dy, msftx, msfty,                 &
+                wtddt,stepwtd  ,dt  ,qrfsxy ,qspringsxy  ,qslatxy,                                      &
+                fdepthxy ,ht   ,riverbedxy ,eqzwt ,rivercondxy ,pexpxy                                  &
+#endif
+                )
+   
+
+            !copy local arrays to grist grid:
+            call lsm_noahmp_to_grist()  
+
+        end subroutine lsm_noahmp_init
+        
+end module grist_lsm_noahmp_init

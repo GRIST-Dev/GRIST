@@ -1,0 +1,64 @@
+c_grist_map.o : c_grist_map.cpp  
+c_grist_set.o : c_grist_set.cpp  
+grist_advection_module.o : grist_advection_module.F90 grist_domain_types.o grist_constants.o grist_base_flux_module.o 
+grist_base_flux_module.o : grist_base_flux_module.F90 grist_constants.o 
+grist_clocks.o : grist_clocks.F90  
+grist_config_mesh.o : grist_config_mesh.F90 grist_domain_types.o grist_constants.o grist_grid_file_vars.o 
+grist_config_partition.o : grist_config_partition.F90 grist_grid_file_read.o grist_util_module.o grist_lib.o grist_element_types_icosh.o grist_constants.o grist_list.o grist_grid_file_vars.o grist_data_types.o grist_nml_module.o grist_wrap_pf.o grist_domain_types.o 
+grist_constants.o : grist_constants.F90  
+grist_constants_dbl.o : grist_constants_dbl.F90  
+grist_data_types.o : grist_data_types.F90 grist_element_types_icosh.o grist_constants.o 
+grist_destruct_module.o : grist_destruct_module.F90 grist_constants.o grist_domain_types.o 
+grist_domain_types.o : grist_domain_types.F90 grist_lib.o grist_element_types_icosh.o grist_constants.o grist_nml_module.o grist_data_types.o 
+grist_element_types_cubed.o : grist_element_types_cubed.F90 grist_constants_dbl.o 
+grist_element_types_icosh.o : grist_element_types_icosh.F90 grist_constants_dbl.o 
+grist_ffsl_flux_module.o : grist_ffsl_flux_module.F90 grist_recon_module.o grist_constants.o grist_math_module.o grist_domain_types.o 
+grist_fileio_0d_module.o : grist_fileio_0d_module.F90 grist_handle_error.o grist_constants.o grist_wrap_nf.o grist_domain_types.o 
+grist_fileio_0d_module_gcm.o : grist_fileio_0d_module_gcm.F90 grist_handle_error.o grist_lib.o grist_constants.o grist_wrap_pf.o grist_domain_types.o 
+grist_fileio_list_1d_module.o : grist_fileio_list_1d_module.F90 grist_handle_error.o grist_constants.o grist_list_array.o grist_nml_module.o grist_data_types.o grist_wrap_nf.o grist_domain_types.o 
+grist_fileio_list_1d_module_par.o : grist_fileio_list_1d_module_par.F90 grist_handle_error.o grist_lib.o grist_constants.o grist_list_array.o grist_nml_module.o grist_data_types.o grist_wrap_pf.o grist_domain_types.o 
+grist_fileio_list_2d_module.o : grist_fileio_list_2d_module.F90 grist_handle_error.o grist_constants.o grist_list_array.o grist_nml_module.o grist_data_types.o grist_wrap_nf.o grist_domain_types.o 
+grist_fileio_list_2d_module_par.o : grist_fileio_list_2d_module_par.F90 grist_handle_error.o grist_lib.o grist_constants.o grist_list_array.o grist_nml_module.o grist_data_types.o grist_wrap_pf.o grist_domain_types.o 
+grist_fileio_list_3d_module_par.o : grist_fileio_list_3d_module_par.F90 grist_handle_error.o grist_lib.o grist_constants.o grist_list_array.o grist_nml_module.o grist_data_types.o grist_wrap_pf.o grist_domain_types.o 
+grist_flux_operators.o : grist_flux_operators.F90 grist_recon_module.o grist_constants.o grist_tspas_flux_module.o grist_base_flux_module.o grist_nml_module.o grist_ffsl_flux_module.o grist_math_module.o grist_domain_types.o 
+grist_gcd_module.o : grist_gcd_module.F90 grist_recon_module.o grist_constants.o grist_domain_types.o 
+grist_geometric_info_icosh.o : grist_geometric_info_icosh.F90 grist_mpi.o grist_handle_error.o grist_config_partition.o grist_element_types_icosh.o grist_data_types.o grist_constants_dbl.o grist_math_module.o grist_domain_types.o 
+grist_grid_file_read.o : grist_grid_file_read.F90 grist_util_module.o grist_lib.o grist_element_types_icosh.o grist_constants.o grist_grid_file_vars.o grist_data_types.o grist_nml_module.o grist_wrap_pf.o grist_fileio_0d_module_gcm.o grist_domain_types.o grist_fileio_list_2d_module_par.o 
+grist_grid_file_vars.o : grist_grid_file_vars.F90 grist_element_types_icosh.o grist_constants.o grist_data_types.o grist_domain_types.o 
+grist_handle_error.o : grist_handle_error.F90  
+grist_hori_swe_module.o : grist_hori_swe_module.F90 grist_recon_module.o grist_gcd_module.o grist_constants.o grist_flux_operators.o grist_nml_module.o grist_domain_types.o 
+grist_lib.o : grist_lib.F90 grist_mpi.o grist_set.o grist_utils.o grist_metis.o grist_map.o 
+grist_limiter_module.o : grist_limiter_module.F90 grist_constants.o grist_domain_types.o 
+grist_list.o : grist_list.F90  
+grist_list_array.o : grist_list_array.F90 grist_constants.o 
+grist_map.o : grist_map.F90 grist_utils.o config.h
+grist_math_module.o : grist_math_module.F90 grist_mpi.o grist_handle_error.o grist_constants_dbl.o grist_domain_types.o 
+grist_mesh_weight_icosh.o : grist_mesh_weight_icosh.F90 grist_mpi.o grist_config_partition.o grist_handle_error.o grist_svd_module.o grist_list.o grist_data_types.o grist_nml_module.o grist_constants_dbl.o grist_geometric_info_icosh.o grist_math_module.o grist_domain_types.o 
+grist_metis.o : grist_metis.F90 grist_utils.o config.h
+grist_mpi.o : grist_mpi.F90  
+grist_ncar_shr_const_mod.o : grist_ncar_shr_const_mod.F90 grist_constants.o 
+grist_nml_module.o : grist_nml_module.F90 grist_mpi.o grist_handle_error.o grist_constants.o grist_time_manager.o 
+grist_partition.o : grist_partition.F90 grist_lib.o grist_data_types.o grist_nml_module.o grist_fileio_0d_module_gcm.o grist_constants_dbl.o grist_domain_types.o grist_clocks.o grist_fileio_list_2d_module_par.o 
+grist_recon_module.o : grist_recon_module.F90 grist_constants.o grist_nml_module.o grist_math_module.o grist_domain_types.o grist_mesh_weight_icosh.o 
+grist_set.o : grist_set.F90 grist_utils.o config.h
+grist_svd_module.o : grist_svd_module.F90 grist_constants_dbl.o 
+grist_swe.o : grist_swe.F90 grist_mpi.o grist_grid_file_read.o grist_config_partition.o grist_config_mesh.o grist_lib.o swe_model_driver.o grist_nml_module.o grist_destruct_module.o grist_geometric_info_icosh.o grist_domain_types.o grist_mesh_weight_icosh.o 
+grist_time_manager.o : grist_time_manager.F90 grist_handle_error.o grist_constants.o grist_zenith.o 
+grist_tspas_flux_module.o : grist_tspas_flux_module.F90 grist_constants.o grist_base_flux_module.o grist_domain_types.o 
+grist_util_module.o : grist_util_module.F90 grist_mpi.o grist_lib.o grist_constants_dbl.o grist_math_module.o grist_domain_types.o 
+grist_utils.o : grist_utils.F90  
+grist_wrap_mpi.o : grist_wrap_mpi.F90 grist_handle_error.o grist_constants.o 
+grist_wrap_nf.o : grist_wrap_nf.F90 grist_constants.o 
+grist_wrap_pf.o : grist_wrap_pf.F90 grist_lib.o 
+grist_wrfphys_nml_module.o : grist_wrfphys_nml_module.F90 grist_mpi.o grist_constants.o grist_nml_module.o 
+grist_zenith.o : grist_zenith.F90 grist_mpi.o grist_handle_error.o grist_constants.o 
+shr_const_mod.o : shr_const_mod.F90 grist_constants.o 
+swe_diagnose_module.o : swe_diagnose_module.F90 grist_recon_module.o grist_util_module.o grist_lib.o swe_vars_module.o grist_gcd_module.o grist_constants.o grist_nml_module.o grist_flux_operators.o grist_data_types.o grist_domain_types.o 
+swe_init_module.o : swe_init_module.F90 grist_config_partition.o grist_constants.o grist_nml_module.o grist_data_types.o grist_math_module.o grist_domain_types.o 
+swe_inout_module.o : swe_inout_module.F90 grist_recon_module.o grist_util_module.o grist_lib.o swe_vars_module.o grist_constants.o grist_time_manager.o grist_nml_module.o swe_diagnose_module.o grist_domain_types.o grist_fileio_list_1d_module_par.o 
+swe_model_driver.o : swe_model_driver.F90 grist_mpi.o swe_init_module.o grist_config_partition.o swe_vars_module.o grist_constants.o swe_restart_module.o grist_nml_module.o swe_diagnose_module.o grist_geometric_info_icosh.o swe_inout_module.o grist_domain_types.o swe_time_integration.o grist_mesh_weight_icosh.o 
+swe_restart_module.o : swe_restart_module.F90 grist_util_module.o swe_vars_module.o grist_constants.o grist_time_manager.o grist_nml_module.o grist_fileio_list_1d_module.o grist_domain_types.o 
+swe_spatial_module.o : swe_spatial_module.F90 swe_init_module.o grist_limiter_module.o grist_config_partition.o swe_vars_module.o grist_gcd_module.o grist_constants.o grist_nml_module.o grist_flux_operators.o grist_data_types.o grist_hori_swe_module.o grist_domain_types.o grist_advection_module.o 
+swe_spatial_module_tr.o : swe_spatial_module_tr.F90 swe_init_module.o grist_limiter_module.o swe_vars_module.o grist_gcd_module.o grist_constants.o grist_nml_module.o grist_flux_operators.o grist_data_types.o grist_domain_types.o 
+swe_time_integration.o : swe_time_integration.F90 grist_config_partition.o grist_constants.o grist_nml_module.o grist_data_types.o swe_spatial_module_tr.o grist_domain_types.o swe_spatial_module.o 
+swe_vars_module.o : swe_vars_module.F90 grist_constants.o grist_data_types.o grist_domain_types.o 
