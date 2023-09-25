@@ -1,0 +1,7509 @@
+module module_sf_noahmplsm
+   use grist_constants, only: r8
+
+  implicit none
+
+  public  :: noahmp_options
+  public  :: noahmp_sflx
+
+  private :: atm
+  private :: phenology
+  private :: precip_heat
+  private :: energy
+  private ::       thermoprop
+  private ::               csnow
+  private ::               tdfcnd
+  private ::       radiation
+  private ::               albedo
+  private ::                         snow_age
+  private ::                         snowalb_bats  
+  private ::                         snowalb_class
+  private ::                         groundalb
+  private ::                         twostream
+  private ::               surrad
+  private ::       vege_flux
+  private ::               sfcdif1                  
+  private ::               sfcdif2                
+  private ::               stomata                  
+  private ::               canres                  
+  private ::               esat
+  private ::               ragrb
+  private ::       bare_flux
+  private ::       tsnosoi
+  private ::               hrt
+  private ::               hstep   
+  private ::                         rosr12
+  private ::       phasechange
+  private ::               frh2o           
+
+  private :: water
+  private :: canwater
+  private :: snowwater
+  private :: snowfall
+  private :: combine
+  private :: divide
+  private :: combo
+  private :: compact
+  private :: snowh2o
+  private :: soilwater
+  private :: zwteq
+  private :: infil
+  private :: srt
+  private :: wdfcnd1        
+  private :: wdfcnd2       
+  private :: sstep
+  private :: groundwater
+  private :: shallowwatertable
+  private :: carbon
+  private :: co2flux
+  private :: error
+
+  integer :: dveg     
+  integer :: opt_crs
+  integer :: opt_btr
+  integer :: opt_run
+  integer :: opt_sfc
+  integer :: opt_frz
+  integer :: opt_inf 
+  integer :: opt_rad
+  integer :: opt_alb
+  integer :: opt_snf
+  integer :: opt_tbot                  
+  integer :: opt_stc  
+  integer :: opt_rsf  
+
+  real(r8)  , parameter :: grav   = 9.80616   
+  real(r8)  , parameter :: sb     = 5.67e-08  
+  real(r8)  , parameter :: vkc    = 0.40      
+  real(r8)  , parameter :: tfrz   = 273.16    
+  real(r8)  , parameter :: hsub   = 2.8440e06 
+  real(r8)  , parameter :: hvap   = 2.5104e06 
+  real(r8)  , parameter :: hfus   = 0.3336e06 
+  real(r8)  , parameter :: cwat   = 4.188e06  
+  real(r8)  , parameter :: cice   = 2.094e06  
+  real(r8)  , parameter :: cpair  = 1004.64   
+  real(r8)  , parameter :: tkwat  = 0.6       
+  real(r8)  , parameter :: tkice  = 2.2       
+  real(r8)  , parameter :: tkair  = 0.023     
+  real(r8)  , parameter :: rair   = 287.04    
+  real(r8)  , parameter :: rw     = 461.269   
+  real(r8)  , parameter :: denh2o = 1000.     
+  real(r8)  , parameter :: denice = 917.      
+
+  integer, private, parameter :: mband = 2
+  integer, private, parameter :: nsoil = 4
+  integer, private, parameter :: nstage = 8
+
+  type noahmp_parameters 
+
+    logical :: urban_flag
+    integer :: iswater
+    integer :: isbarren
+    integer :: isice
+    integer :: eblforest
+
+    real(r8)            :: ch2op              
+    real(r8)            :: dleaf              
+    real(r8)            :: z0mvt              
+    real(r8)            :: hvt                
+    real(r8)            :: hvb                
+    real(r8)            :: den                
+    real(r8)            :: rc                 
+    real(r8)            :: mfsno              
+    real(r8)            :: saim(12)           
+    real(r8)            :: laim(12)           
+    real(r8)            :: sla                
+    real(r8)            :: dilefc             
+    real(r8)            :: dilefw             
+    real(r8)            :: fragr              
+    real(r8)            :: ltovrc             
+
+    real(r8)            :: c3psn              
+    real(r8)            :: kc25               
+    real(r8)            :: akc                
+    real(r8)            :: ko25               
+    real(r8)            :: ako                
+    real(r8)            :: vcmx25             
+    real(r8)            :: avcmx              
+    real(r8)            :: bp                 
+    real(r8)            :: mp                 
+    real(r8)            :: qe25               
+    real(r8)            :: aqe                
+    real(r8)            :: rmf25              
+    real(r8)            :: rms25              
+    real(r8)            :: rmr25              
+    real(r8)            :: arm                
+    real(r8)            :: folnmx             
+    real(r8)            :: tmin               
+       
+    real(r8)            :: xl                 
+    real(r8)            :: rhol(mband)        
+    real(r8)            :: rhos(mband)        
+    real(r8)            :: taul(mband)        
+    real(r8)            :: taus(mband)        
+
+    real(r8)            :: mrp                
+    real(r8)            :: cwpvt              
+
+    real(r8)            :: wrrat              
+    real(r8)            :: wdpool             
+    real(r8)            :: tdlef              
+
+     integer :: nroot              
+     real(r8)            :: rgl                
+     real(r8)            :: rsmin              
+     real(r8)            :: hs                 
+     real(r8)            :: topt               
+     real(r8)            :: rsmax              
+
+     real(r8)            :: slarea
+     real(r8)            :: eps(5)
+
+     real(r8)            :: albsat(mband)       
+     real(r8)            :: albdry(mband)       
+     real(r8)            :: albice(mband)       
+     real(r8)            :: alblak(mband)       
+     real(r8)            :: omegas(mband)       
+     real(r8)            :: betads              
+     real(r8)            :: betais              
+     real(r8)            :: eg(2)               
+     real(r8)            :: co2          
+     real(r8)            :: o2           
+     real(r8)            :: timean       
+     real(r8)            :: fsatmx       
+     real(r8)            :: z0sno        
+     real(r8)            :: ssi          
+     real(r8)            :: swemx        
+     real(r8)            :: rsurf_snow   
+
+  integer :: pltday           
+  integer :: hsday            
+     real(r8)            :: plantpop         
+     real(r8)            :: irri             
+     real(r8)            :: gddtbase         
+     real(r8)            :: gddtcut          
+     real(r8)            :: gdds1            
+     real(r8)            :: gdds2            
+     real(r8)            :: gdds3            
+     real(r8)            :: gdds4            
+     real(r8)            :: gdds5            
+  integer :: c3c4             
+     real(r8)            :: aref             
+     real(r8)            :: psnrf            
+     real(r8)            :: i2par            
+     real(r8)            :: tassim0          
+     real(r8)            :: tassim1          
+     real(r8)            :: tassim2          
+     real(r8)            :: k                
+     real(r8)            :: epsi             
+     real(r8)            :: q10mr            
+     real(r8)            :: foln_mx          
+     real(r8)            :: lefreez          
+     real(r8)            :: dile_fc(nstage)  
+     real(r8)            :: dile_fw(nstage)  
+     real(r8)            :: fra_gr           
+     real(r8)            :: lf_ovrc(nstage)  
+     real(r8)            :: st_ovrc(nstage)  
+     real(r8)            :: rt_ovrc(nstage)  
+     real(r8)            :: lfmr25           
+     real(r8)            :: stmr25           
+     real(r8)            :: rtmr25           
+     real(r8)            :: grainmr25        
+     real(r8)            :: lfpt(nstage)     
+     real(r8)            :: stpt(nstage)     
+     real(r8)            :: rtpt(nstage)     
+     real(r8)            :: grainpt(nstage)  
+     real(r8)            :: bio2lai          
+
+     real(r8)            :: bexp(nsoil)   
+     real(r8)            :: smcdry(nsoil) 
+                           
+     real(r8)            :: smcwlt(nsoil) 
+     real(r8)            :: smcref(nsoil) 
+     real(r8)            :: smcmax(nsoil) 
+     real(r8)            :: psisat(nsoil) 
+     real(r8)            :: dksat(nsoil)  
+     real(r8)            :: dwsat(nsoil)  
+     real(r8)            :: quartz(nsoil) 
+     real(r8)            :: f1            
+
+     real(r8)            :: slope       
+     real(r8)            :: csoil       
+     real(r8)            :: zbot        
+     real(r8)            :: czil        
+     real(r8)            :: refdk
+     real(r8)            :: refkdt
+
+     real(r8)            :: kdt         
+     real(r8)            :: frzx        
+
+  end type noahmp_parameters
+
+contains
+
+
+
+  subroutine noahmp_sflx (parameters, &
+                   iloc    , jloc    , lat     , yearlen , julian  , cosz    , & 
+                   dt      , dx      , dz8w    , nsoil   , zsoil   , nsnow   , & 
+                   shdfac  , shdmax  , vegtyp  , ice     , ist     ,           & 
+                   smceq   ,                                                   & 
+                   sfctmp  , sfcprs  , psfc    , uu      , vv      , q2      , & 
+                   qc      , soldn   , lwdn    ,                               & 
+	           prcpconv, prcpnonc, prcpshcv, prcpsnow, prcpgrpl, prcphail, & 
+                   tbot    , co2air  , o2air   , foln    , ficeold , zlvl    , & 
+                   albold  , sneqvo  ,                                         & 
+                   stc     , sh2o    , smc     , tah     , eah     , fwet    , & 
+                   canliq  , canice  , tv      , tg      , qsfc    , qsnow   , & 
+                   isnow   , zsnso   , snowh   , sneqv   , snice   , snliq   , & 
+                   zwt     , wa      , wt      , wslake  , lfmass  , rtmass  , & 
+                   stmass  , wood    , stblcp  , fastcp  , lai     , sai     , & 
+                   cm      , ch      , tauss   ,                               & 
+                   grain   , gdd     ,                                         & 
+                   smcwtd  ,deeprech , rech    ,                               & 
+		   z0wrf   , &
+                   fsa     , fsr     , fira    , fsh     , ssoil   , fcev    , & 
+                   fgev    , fctr    , ecan    , etran   , edir    , trad    , & 
+                   tgb     , tgv     , t2mv    , t2mb    , q2v     , q2b     , & 
+                   runsrf  , runsub  , apar    , psn     , sav     , sag     , & 
+                   fsno    , nee     , gpp     , npp     , fveg    , albedo  , & 
+                   qsnbot  , ponding , ponding1, ponding2, rssun   , rssha   , & 
+                   bgap    , wgap    , chv     , chb     , emissi  ,           & 
+		   shg     , shc     , shb     , evg     , evb     , ghv     , & 
+		   ghb     , irg     , irc     , irb     , tr      , evc     , & 
+		   chleaf  , chuc    , chv2    , chb2    , fpice   , pahv    , &
+                   pahg    , pahb    , pah,                                     &
+                   taux, tauy, fire, albd_out,albi_out)  !--cheyz
+
+
+
+
+  implicit none
+
+
+  type (noahmp_parameters), intent(in) :: parameters
+
+  integer                        , intent(in)    :: ice    
+  integer                        , intent(in)    :: ist    
+  integer                        , intent(in)    :: vegtyp 
+  integer                        , intent(in)    :: nsnow  
+  integer                        , intent(in)    :: nsoil  
+  integer                        , intent(in)    :: iloc   
+  integer                        , intent(in)    :: jloc   
+  real(r8)                    , intent(in)    :: dt     
+  real(r8)  , dimension(       1:nsoil), intent(in)    :: zsoil  
+  real(r8)                    , intent(in)    :: q2     
+  real(r8)                    , intent(in)    :: sfctmp 
+  real(r8)                    , intent(in)    :: uu     
+  real(r8)                    , intent(in)    :: vv     
+  real(r8)                    , intent(in)    :: soldn  
+  real(r8)                    , intent(in)    :: lwdn   
+  real(r8)                    , intent(in)    :: sfcprs 
+  real(r8)                    , intent(inout) :: zlvl   
+  real(r8)                    , intent(in)    :: cosz   
+  real(r8)                    , intent(in)    :: tbot   
+  real(r8)                    , intent(in)    :: foln   
+  real(r8)                    , intent(in)    :: shdfac 
+  integer                        , intent(in)    :: yearlen
+  real(r8)                    , intent(in)    :: julian 
+  real(r8)                    , intent(in)    :: lat    
+  real(r8)  , dimension(-nsnow+1:    0), intent(in)    :: ficeold
+  real(r8)  , dimension(       1:nsoil), intent(in)    :: smceq  
+  real(r8)                    , intent(in)    :: prcpconv 
+  real(r8)                    , intent(in)    :: prcpnonc 
+  real(r8)                    , intent(in)    :: prcpshcv 
+  real(r8)                    , intent(in)    :: prcpsnow 
+  real(r8)                    , intent(in)    :: prcpgrpl 
+  real(r8)                    , intent(in)    :: prcphail 
+
+
+  real(r8)                    , intent(in)    :: qc     
+  real(r8)                    , intent(inout)    :: qsfc   
+  real(r8)                    , intent(in)    :: psfc   
+  real(r8)                    , intent(in)    :: dz8w   
+  real(r8)                    , intent(in)    :: dx
+  real(r8)                    , intent(in)    :: shdmax  
+
+
+
+
+  real(r8)                    , intent(inout) :: qsnow  
+  real(r8)                    , intent(inout) :: fwet   
+  real(r8)                    , intent(inout) :: sneqvo 
+  real(r8)                    , intent(inout) :: eah    
+  real(r8)                    , intent(inout) :: tah    
+  real(r8)                    , intent(inout) :: albold 
+  real(r8)                    , intent(inout) :: cm     
+  real(r8)                    , intent(inout) :: ch     
+  real(r8)                    , intent(inout) :: tauss  
+
+
+  integer                        , intent(inout) :: isnow  
+  real(r8)                    , intent(inout) :: canliq 
+  real(r8)                    , intent(inout) :: canice 
+  real(r8)                    , intent(inout) :: sneqv  
+  real(r8)  , dimension(       1:nsoil), intent(inout) :: smc    
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: zsnso  
+  real(r8)                    , intent(inout) :: snowh  
+  real(r8)  , dimension(-nsnow+1:    0), intent(inout) :: snice  
+  real(r8)  , dimension(-nsnow+1:    0), intent(inout) :: snliq  
+  real(r8)                    , intent(inout) :: tv     
+  real(r8)                    , intent(inout) :: tg     
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: stc    
+  real(r8)  , dimension(       1:nsoil), intent(inout) :: sh2o   
+  real(r8)                    , intent(inout) :: zwt    
+  real(r8)                    , intent(inout) :: wa     
+  real(r8)                    , intent(inout) :: wt     
+  real(r8)                    , intent(inout) :: wslake 
+  real(r8)  ,                            intent(inout) :: smcwtd 
+  real(r8)  ,                            intent(inout) :: deeprech 
+  real(r8)  ,                            intent(inout) :: rech 
+
+
+  real(r8)                    , intent(out)   :: z0wrf  
+  real(r8)                    , intent(out)   :: fsa    
+  real(r8)                    , intent(out)   :: fsr    
+  real(r8)                    , intent(out)   :: fira   
+  real(r8)                    , intent(out)   :: fsh    
+  real(r8)                    , intent(out)   :: fcev   
+  real(r8)                    , intent(out)   :: fgev   
+  real(r8)                    , intent(out)   :: fctr   
+  real(r8)                    , intent(out)   :: ssoil  
+  real(r8)                    , intent(out)   :: trad   
+  real(r8)                                      :: ts     
+  real(r8)                    , intent(out)   :: ecan   
+  real(r8)                    , intent(out)   :: etran  
+  real(r8)                    , intent(out)   :: edir   
+  real(r8)                    , intent(out)   :: runsrf 
+  real(r8)                    , intent(out)   :: runsub 
+  real(r8)                    , intent(out)   :: psn    
+  real(r8)                    , intent(out)   :: apar   
+  real(r8)                    , intent(out)   :: sav    
+  real(r8)                    , intent(out)   :: sag    
+  real(r8)                    , intent(out)   :: fsno   
+  real(r8)                    , intent(out)   :: fveg   
+  real(r8)                    , intent(out)   :: albedo 
+  real(r8)                                      :: errwat 
+  real(r8)                    , intent(out)   :: qsnbot 
+  real(r8)                    , intent(out)   :: ponding
+  real(r8)                    , intent(out)   :: ponding1
+  real(r8)                    , intent(out)   :: ponding2
+
+
+  real(r8)                    , intent(out)     :: t2mv   
+  real(r8)                    , intent(out)     :: t2mb   
+  real(r8)  , intent(out) :: rssun        
+  real(r8)  , intent(out) :: rssha        
+  real(r8)  , intent(out) :: bgap
+  real(r8)  , intent(out) :: wgap
+  real(r8)  , intent(out) :: tgv
+  real(r8)  , intent(out) :: tgb
+  real(r8)              :: q1
+  real(r8)  , intent(out) :: emissi
+
+
+
+  integer                                        :: iz     
+  integer, dimension(-nsnow+1:nsoil)             :: imelt  
+  real(r8)                                      :: cmc    
+!   real(r8)                                      :: taux   
+!   real(r8)                                      :: tauy
+  real(r8)                    , intent(out)     :: taux , fire  !!--cheyz 
+  real(r8)                    , intent(out)     :: tauy 
+  real(r8),dimension(1:2)     , intent(out)     :: albd_out,albi_out !--cheyz
+  
+  real(r8)                                      :: rhoair 
+
+  real(r8)  , dimension(-nsnow+1:nsoil)                :: dzsnso 
+  real(r8)                                      :: thair  
+  real(r8)                                      :: qair   
+  real(r8)                                      :: eair   
+  real(r8)  , dimension(       1:    2)                :: solad  
+  real(r8)  , dimension(       1:    2)                :: solai  
+  real(r8)                                      :: qprecc 
+  real(r8)                                      :: qprecl 
+  real(r8)                                      :: igs    
+  real(r8)                                      :: elai   
+  real(r8)                                      :: esai   
+  real(r8)                                      :: bevap  
+  real(r8)  , dimension(       1:nsoil)                :: btrani 
+  real(r8)                                      :: btran  
+  real(r8)                                      :: qin    
+  real(r8)                                      :: qdis   
+  real(r8)  , dimension(       1:nsoil)                :: sice   
+  real(r8)  , dimension(-nsnow+1:    0)                :: snicev 
+  real(r8)  , dimension(-nsnow+1:    0)                :: snliqv 
+  real(r8)  , dimension(-nsnow+1:    0)                :: epore  
+  real(r8)                                      :: totsc  
+  real(r8)                                      :: totlb  
+  real(r8)                                      :: t2m    
+  real(r8)                                      :: qdew   
+  real(r8)                                      :: qvap   
+  real(r8)                                      :: lathea 
+  real(r8)                                      :: swdown 
+  real(r8)                                      :: qmelt  
+  real(r8)                                      :: beg_wb 
+  real(r8)  ,intent(out)                                              :: irc    
+  real(r8)  ,intent(out)                                              :: irg    
+  real(r8)  ,intent(out)                                              :: shc    
+  real(r8)  ,intent(out)                                              :: shg    
+  real(r8)  ,intent(out)                                              :: evg    
+  real(r8)  ,intent(out)                                              :: ghv    
+  real(r8)  ,intent(out)                                              :: irb    
+  real(r8)  ,intent(out)                                              :: shb    
+  real(r8)  ,intent(out)                                              :: evb    
+  real(r8)  ,intent(out)                                              :: ghb    
+  real(r8)  ,intent(out)                                              :: evc    
+  real(r8)  ,intent(out)                                              :: tr     
+  real(r8)  , intent(out)   :: fpice   
+  real(r8)  , intent(out)   :: pahv    
+  real(r8)  , intent(out)   :: pahg    
+  real(r8)  , intent(out)   :: pahb    
+  real(r8)  , intent(out)                                           :: pah     
+
+
+  real(r8)                                      :: fsrv
+  real(r8)                                      :: fsrg
+  real(r8)  ,intent(out)                               :: q2v
+  real(r8)  ,intent(out)                               :: q2b
+  real(r8)            :: q2e
+  real(r8)            :: qfx
+  real(r8)  ,intent(out)                               :: chv    
+  real(r8)  ,intent(out)                               :: chb    
+  real(r8)  ,intent(out)                               :: chleaf 
+  real(r8)  ,intent(out)                               :: chuc   
+  real(r8)  ,intent(out)                               :: chv2    
+  real(r8)  ,intent(out)                               :: chb2    
+
+
+
+
+  real(r8)                    , intent(in)    :: co2air 
+  real(r8)                    , intent(in)    :: o2air  
+
+
+  real(r8)                   , intent(inout)    :: lfmass 
+  real(r8)                   , intent(inout)    :: rtmass 
+  real(r8)                   , intent(inout)    :: stmass 
+  real(r8)                   , intent(inout)    :: wood   
+  real(r8)                   , intent(inout)    :: stblcp 
+  real(r8)                   , intent(inout)    :: fastcp 
+  real(r8)                   , intent(inout)    :: lai    
+  real(r8)                   , intent(inout)    :: sai    
+  real(r8)                   , intent(inout)    :: grain  
+  real(r8)                   , intent(inout)    :: gdd    
+
+
+  real(r8)                   , intent(out)    :: nee    
+  real(r8)                   , intent(out)    :: gpp    
+  real(r8)                   , intent(out)    :: npp    
+  real(r8)                                      :: autors 
+  real(r8)                                      :: heters 
+  real(r8)                                      :: troot  
+  real(r8)                                      :: bdfall   
+  real(r8)                                      :: rain     
+  real(r8)                                      :: snow     
+  real(r8)                                      :: fp                                            
+  real(r8)                                      :: prcp                                          
+
+  real(r8)                                      :: qintr   
+  real(r8)                                      :: qdripr  
+  real(r8)                                      :: qthror  
+  real(r8)                                      :: qints   
+  real(r8)                                      :: qdrips  
+  real(r8)                                      :: qthros  
+  real(r8)                                      :: qrain   
+  real(r8)                                      :: snowhin 
+  real(r8)                                   :: latheav 
+  real(r8)                                   :: latheag 
+  logical                             :: frozen_ground 
+  logical                             :: frozen_canopy 
+  
+  
+  
+  nee = 0.0
+  npp = 0.0
+  gpp = 0.0
+      pahv  = 0.
+      pahg  = 0.
+      pahb  = 0.
+      pah  = 0.
+
+
+
+
+   call atm (parameters,sfcprs  ,sfctmp   ,q2      ,                            &
+             prcpconv, prcpnonc,prcpshcv,prcpsnow,prcpgrpl,prcphail, &
+             soldn   ,cosz     ,thair   ,qair    ,                   & 
+             eair    ,rhoair   ,qprecc  ,qprecl  ,solad   ,solai   , &
+             swdown  ,bdfall   ,rain    ,snow    ,fp      ,fpice   , prcp )     
+
+
+
+     do iz = isnow+1, nsoil
+         if(iz == isnow+1) then
+           dzsnso(iz) = - zsnso(iz)
+         else
+           dzsnso(iz) = zsnso(iz-1) - zsnso(iz)
+         end if
+     end do
+
+
+
+     troot  = 0.
+     do iz=1,parameters%nroot
+        troot = troot + stc(iz)*dzsnso(iz)/(-zsoil(parameters%nroot))
+     enddo
+
+
+    
+     if(ist == 1) then
+     beg_wb = canliq + canice + sneqv + wa
+     do iz = 1,nsoil
+        beg_wb = beg_wb + smc(iz) * dzsnso(iz) * 1000.
+     end do
+     end if
+
+
+
+     call phenology (parameters,vegtyp , snowh  , tv     , lat   , yearlen , julian , & 
+                     lai    , sai    , troot  , elai    , esai   ,igs)
+
+
+     if(dveg == 1 .or. dveg == 6 .or. dveg == 7) then
+        fveg = shdfac
+        if(fveg <= 0.05) fveg = 0.05
+     else if (dveg == 2 .or. dveg == 3 .or. dveg == 8) then
+        fveg = 1.-exp(-0.52*(lai+sai))
+        if(fveg <= 0.05) fveg = 0.05
+     else if (dveg == 4 .or. dveg == 5 .or. dveg == 9 .or. dveg == 10) then
+        fveg = shdmax
+        if(fveg <= 0.05) fveg = 0.05
+     else
+        write(*,*) "-------- fatal called in sflx -----------"
+        print*, (&
+"namelist parameter dveg unknown") 
+     endif
+     if(parameters%urban_flag .or. vegtyp == parameters%isbarren) fveg = 0.0
+     if(elai+esai == 0.0) fveg = 0.0
+
+    call precip_heat(parameters,iloc   ,jloc   ,vegtyp ,dt     ,uu     ,vv     , & 
+                     elai   ,esai   ,fveg   ,ist    ,                 & 
+                     bdfall ,rain   ,snow   ,fp     ,                 & 
+                     canliq ,canice ,tv     ,sfctmp ,tg     ,         & 
+                     qintr  ,qdripr ,qthror ,qints  ,qdrips ,qthros , & 
+                     pahv   ,pahg   ,pahb   ,qrain  ,qsnow  ,snowhin, & 
+	             fwet   ,cmc                                    )   
+
+
+
+    call energy (parameters,ice    ,vegtyp ,ist    ,nsnow  ,nsoil  , & 
+                 isnow  ,dt     ,rhoair ,sfcprs ,qair   , & 
+                 sfctmp ,thair  ,lwdn   ,uu     ,vv     ,zlvl   , & 
+                 co2air ,o2air  ,solad  ,solai  ,cosz   ,igs    , & 
+                 eair   ,tbot   ,zsnso  ,zsoil  , & 
+                 elai   ,esai   ,fwet   ,foln   ,         & 
+                 fveg   ,pahv   ,pahg   ,pahb   ,                 & 
+                 qsnow  ,dzsnso ,lat    ,canliq ,canice ,iloc, jloc , & 
+		 z0wrf  ,                                         &
+                 imelt  ,snicev ,snliqv ,epore  ,t2m    ,fsno   , & 
+                 sav    ,sag    ,qmelt  ,fsa    ,fsr    ,taux   , & 
+                 tauy   ,fira   ,fsh    ,fcev   ,fgev   ,fctr   , & 
+                 trad   ,psn    ,apar   ,ssoil  ,btrani ,btran  , & 
+                 ponding,ts     ,latheav , latheag , frozen_canopy,frozen_ground,                         & 
+                 tv     ,tg     ,stc    ,snowh  ,eah    ,tah    , & 
+                 sneqvo ,sneqv  ,sh2o   ,smc    ,snice  ,snliq  , & 
+                 albold ,cm     ,ch     ,dx     ,dz8w   ,q2     , & 
+                 tauss  ,                                         & 
+
+                 qc     ,qsfc   ,psfc   , & 
+                 t2mv   ,t2mb  ,fsrv   , &
+                 fsrg   ,rssun   ,rssha ,bgap   ,wgap, tgv,tgb,&
+                 q1     ,q2v    ,q2b    ,q2e    ,chv   ,chb     , & 
+                 emissi ,pah    ,                                 &
+		     shg,shc,shb,evg,evb,ghv,ghb,irg,irc,irb,tr,evc,chleaf,chuc,chv2,chb2,fire,albd_out,albi_out )  !--cheyz                                           
+
+
+    sice(:) = max(0.0, smc(:) - sh2o(:))   
+    sneqvo  = sneqv
+
+    qvap = max( fgev/latheag, 0.)       
+    qdew = abs( min(fgev/latheag, 0.))  
+    edir = qvap - qdew
+
+
+
+     call water (parameters,vegtyp ,nsnow  ,nsoil  ,imelt  ,dt     ,uu     , & 
+                 vv     ,fcev   ,fctr   ,qprecc ,qprecl ,elai   , & 
+                 esai   ,sfctmp ,qvap   ,qdew   ,zsoil  ,btrani , & 
+                 ficeold,ponding,tg     ,ist    ,fveg   ,iloc,jloc , smceq , & 
+                 bdfall ,fp     ,rain   ,snow   ,                 & 
+		 qsnow  ,qrain  ,snowhin,latheav,latheag,frozen_canopy,frozen_ground,  & 
+                 isnow  ,canliq ,canice ,tv     ,snowh  ,sneqv  , & 
+                 snice  ,snliq  ,stc    ,zsnso  ,sh2o   ,smc    , & 
+                 sice   ,zwt    ,wa     ,wt     ,dzsnso ,wslake , & 
+                 smcwtd ,deeprech,rech                          , & 
+                 cmc    ,ecan   ,etran  ,fwet   ,runsrf ,runsub , & 
+                 qin    ,qdis   ,ponding1       ,ponding2,&
+                 qsnbot                             &
+                 )  
+
+
+
+
+
+   if (dveg == 2 .or. dveg == 5 .or. dveg == 6) then
+    call carbon (parameters,nsnow  ,nsoil  ,vegtyp ,dt     ,zsoil  , & 
+                 dzsnso ,stc    ,smc    ,tv     ,tg     ,psn    , & 
+                 foln   ,btran  ,apar   ,fveg   ,igs    , & 
+                 troot  ,ist    ,lat    ,iloc   ,jloc   , & 
+                 lfmass ,rtmass ,stmass ,wood   ,stblcp ,fastcp , & 
+                 gpp    ,npp    ,nee    ,autors ,heters ,totsc  , & 
+                 totlb  ,lai    ,sai    )                   
+   end if
+
+   if (dveg == 10) then 
+    call carbon_crop (parameters,nsnow  ,nsoil  ,vegtyp ,dt     ,zsoil  ,julian , & 
+                         dzsnso ,stc    ,smc    ,tv     ,psn    ,foln   ,btran  , & 
+			 soldn  ,t2m    ,                                         & 
+                         lfmass ,rtmass ,stmass ,wood   ,stblcp ,fastcp ,grain  , & 
+			 lai    ,sai    ,gdd    ,                                 & 
+                         gpp    ,npp    ,nee    ,autors ,heters ,totsc  ,totlb    ) 
+   end if
+   
+
+
+
+     call error (parameters,swdown ,fsa    ,fsr    ,fira   ,fsh    ,fcev   , & 
+                 fgev   ,fctr   ,ssoil  ,beg_wb ,canliq ,canice , & 
+                 sneqv  ,wa     ,smc    ,dzsnso ,prcp   ,ecan   , & 
+                 etran  ,edir   ,runsrf ,runsub ,dt     ,nsoil  , & 
+                 nsnow  ,ist    ,errwat ,iloc   , jloc  ,fveg   , &
+                 sav    ,sag    ,fsrv   ,fsrg   ,zwt    ,pah    , &
+                 pahv   ,pahg   ,pahb   )   
+
+
+    qfx = etran + ecan + edir
+    if ( parameters%urban_flag ) then
+       qsfc = qfx/(rhoair*ch) + qair
+       q2b = qsfc
+    end if
+
+    if(snowh <= 1.e-6 .or. sneqv <= 1.e-3) then
+     snowh = 0.0
+     sneqv = 0.0
+    end if
+
+    if(swdown.ne.0.) then
+      albedo = fsr / swdown
+    else
+      albedo = -999.9
+    end if
+    
+
+  end subroutine noahmp_sflx
+
+
+
+  subroutine atm (parameters,sfcprs  ,sfctmp   ,q2      ,                             &
+                  prcpconv,prcpnonc ,prcpshcv,prcpsnow,prcpgrpl,prcphail , &
+                  soldn   ,cosz     ,thair   ,qair    ,                    & 
+                  eair    ,rhoair   ,qprecc  ,qprecl  ,solad   , solai   , &
+		  swdown  ,bdfall   ,rain    ,snow    ,fp      , fpice   ,prcp )     
+
+  implicit none
+  type (noahmp_parameters), intent(in) :: parameters
+  real(r8)                   , intent(in)  :: sfcprs 
+  real(r8)                   , intent(in)  :: sfctmp 
+  real(r8)                   , intent(in)  :: q2     
+  real(r8)                   , intent(in)  :: prcpconv 
+  real(r8)                   , intent(in)  :: prcpnonc 
+  real(r8)                   , intent(in)  :: prcpshcv 
+  real(r8)                   , intent(in)  :: prcpsnow 
+  real(r8)                   , intent(in)  :: prcpgrpl 
+  real(r8)                   , intent(in)  :: prcphail 
+  real(r8)                   , intent(in)  :: soldn  
+  real(r8)                   , intent(in)  :: cosz   
+
+
+
+  real(r8)                   , intent(out) :: thair  
+  real(r8)                   , intent(out) :: qair   
+  real(r8)                   , intent(out) :: eair   
+  real(r8)                   , intent(out) :: rhoair 
+  real(r8)                   , intent(out) :: qprecc 
+  real(r8)                   , intent(out) :: qprecl 
+  real(r8)  , dimension(       1:   2), intent(out) :: solad  
+  real(r8)  , dimension(       1:   2), intent(out) :: solai  
+  real(r8)                   , intent(out) :: swdown 
+  real(r8)                   , intent(out) :: bdfall  
+  real(r8)                   , intent(out) :: rain    
+  real(r8)                   , intent(out) :: snow    
+  real(r8)                   , intent(out) :: fp      
+  real(r8)                   , intent(out) :: fpice   
+  real(r8)                   , intent(out) :: prcp    
+  real(r8)                                   :: pair   
+  real(r8)                                   :: prcp_frozen   
+  real(r8)  , parameter                             :: rho_grpl = 500.0  
+  real(r8)  , parameter                             :: rho_hail = 917.0  
+
+
+
+       pair   = sfcprs                   
+       thair  = sfctmp * (sfcprs/pair)**(rair/cpair) 
+
+       qair   = q2                       
+
+       eair   = qair*sfcprs / (0.622+0.378*qair)
+       rhoair = (sfcprs-0.378*eair) / (rair*sfctmp)
+
+       if(cosz <= 0.) then 
+          swdown = 0.
+       else
+          swdown = soldn
+       end if 
+
+       solad(1) = swdown*0.7*0.5     
+       solad(2) = swdown*0.7*0.5     
+       solai(1) = swdown*0.3*0.5     
+       solai(2) = swdown*0.3*0.5     
+
+       prcp = prcpconv + prcpnonc + prcpshcv
+
+       if(opt_snf == 4) then
+         qprecc = prcpconv + prcpshcv
+	      qprecl = prcpnonc
+       else
+         qprecc = 0.10 * prcp          
+         qprecl = 0.90 * prcp          
+       end if
+
+
+    fp = 0.0
+    if(qprecc + qprecl > 0.) & 
+       fp = (qprecc + qprecl) / (10.*qprecc + qprecl)
+
+
+     if(opt_snf == 1) then
+       if(sfctmp > tfrz+2.5)then
+           fpice = 0.
+       else
+         if(sfctmp <= tfrz+0.5)then
+           fpice = 1.0
+         else if(sfctmp <= tfrz+2.)then
+           fpice = 1.-(-54.632 + 0.2*sfctmp)
+         else
+           fpice = 0.6
+         endif
+       endif
+     endif
+
+     if(opt_snf == 2) then
+       if(sfctmp >= tfrz+2.2) then
+           fpice = 0.
+       else
+           fpice = 1.0
+       endif
+     endif
+
+     if(opt_snf == 3) then
+       if(sfctmp >= tfrz) then
+           fpice = 0.
+       else
+           fpice = 1.0
+       endif
+     endif
+
+
+
+
+     bdfall = min(120.,67.92+51.25*exp((sfctmp-tfrz)/2.59))       
+     if(opt_snf == 4) then
+        prcp_frozen = prcpsnow + prcpgrpl + prcphail
+        if(prcpnonc > 0. .and. prcp_frozen > 0.) then
+	  fpice = min(1.0,prcp_frozen/prcpnonc)
+	  fpice = max(0.0,fpice)
+	  bdfall = bdfall*(prcpsnow/prcp_frozen) + rho_grpl*(prcpgrpl/prcp_frozen) + &
+	             rho_hail*(prcphail/prcp_frozen)
+	else
+	  fpice = 0.0
+        endif
+	
+     endif
+
+     rain   = prcp * (1.-fpice)
+     snow   = prcp * fpice
+
+  end subroutine atm
+
+
+
+  subroutine phenology (parameters,vegtyp , snowh  , tv     , lat   , yearlen , julian , & 
+                        lai    , sai    , troot  , elai    , esai   , igs)
+
+  implicit none
+
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer                , intent(in   ) :: vegtyp 
+  real(r8)             , intent(in   ) :: snowh  
+  real(r8)             , intent(in   ) :: tv     
+  real(r8)             , intent(in   ) :: lat    
+  integer                , intent(in   ) :: yearlen
+  real(r8)             , intent(in   ) :: julian 
+  real(r8)             , intent(in   ) :: troot  
+  real(r8)             , intent(inout) :: lai    
+  real(r8)             , intent(inout) :: sai    
+
+
+  real(r8)             , intent(out  ) :: elai   
+  real(r8)             , intent(out  ) :: esai   
+  real(r8)             , intent(out  ) :: igs    
+
+
+
+  real(r8)                            :: db     
+  real(r8)                            :: fb     
+  real(r8)                            :: snowhc 
+                                                   
+
+  integer                                :: k       
+  integer                                :: it1,it2 
+  real(r8)                            :: day     
+  real(r8)                            :: wt1,wt2 
+  real(r8)                            :: t       
+
+
+  if ( dveg == 1 .or. dveg == 3 .or. dveg == 4 ) then
+
+     if (lat >= 0.) then
+        
+        day = julian
+     else
+        
+        day = mod ( julian + ( 0.5 * yearlen ) , real(yearlen) )
+     endif
+
+     t = 12. * day / real(yearlen)
+     it1 = t + 0.5
+     it2 = it1 + 1
+     wt1 = (it1+0.5) - t
+     wt2 = 1.-wt1
+     if (it1 .lt.  1) it1 = 12
+     if (it2 .gt. 12) it2 = 1
+
+     lai = wt1*parameters%laim(it1) + wt2*parameters%laim(it2)
+     sai = wt1*parameters%saim(it1) + wt2*parameters%saim(it2)
+  endif
+
+  if(dveg == 7 .or. dveg == 8 .or. dveg == 9) then
+    sai = max(0.05,0.1 * lai)  
+    if (lai < 0.05) sai = 0.0  
+  endif
+
+  if (sai < 0.05 .and. dveg /= 10) sai = 0.0                  
+  if (lai < 0.05 .or. sai == 0.0 .and. dveg /= 10) lai = 0.0  
+
+  if ( ( vegtyp == parameters%iswater ) .or. ( vegtyp == parameters%isbarren ) .or. &
+       ( vegtyp == parameters%isice   ) .or. ( parameters%urban_flag ) ) then
+     lai  = 0.
+     sai  = 0.
+  endif
+
+
+
+     db = min( max(snowh - parameters%hvb,0.), parameters%hvt-parameters%hvb )
+     fb = db / max(1.e-06,parameters%hvt-parameters%hvb)
+
+     if(parameters%hvt> 0. .and. parameters%hvt <= 1.0) then          
+       snowhc = parameters%hvt*exp(-snowh/0.2)             
+       fb     = min(snowh,snowhc)/snowhc
+     endif
+
+     elai =  lai*(1.-fb)
+     esai =  sai*(1.-fb)
+     if (esai < 0.05 .and. dveg /= 10) esai = 0.0                   
+     if (elai < 0.05 .or. esai == 0.0 .and. dveg /= 10) elai = 0.0  
+
+     if (tv .gt. parameters%tmin) then
+         igs = 1.
+     else
+         igs = 0.
+     endif
+
+  end subroutine phenology
+
+
+
+  subroutine precip_heat (parameters,iloc   ,jloc   ,vegtyp ,dt     ,uu     ,vv     , & 
+                          elai   ,esai   ,fveg   ,ist    ,                 & 
+                          bdfall ,rain   ,snow   ,fp     ,                 & 
+                          canliq ,canice ,tv     ,sfctmp ,tg     ,         & 
+                          qintr  ,qdripr ,qthror ,qints  ,qdrips ,qthros , & 
+			  pahv   ,pahg   ,pahb   ,qrain  ,qsnow  ,snowhin, & 
+			  fwet   ,cmc                                    )   
+
+
+
+
+
+  implicit none
+
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer,intent(in)  :: iloc    
+  integer,intent(in)  :: jloc    
+  integer,intent(in)  :: vegtyp  
+  integer,intent(in)  :: ist     
+  real(r8)  ,   intent(in)  :: dt      
+  real(r8)  ,   intent(in)  :: uu      
+  real(r8)  ,   intent(in)  :: vv      
+  real(r8)  ,   intent(in)  :: elai    
+  real(r8)  ,   intent(in)  :: esai    
+  real(r8)  ,   intent(in)  :: fveg    
+  real(r8)  ,   intent(in)  :: bdfall  
+  real(r8)  ,   intent(in)  :: rain    
+  real(r8)  ,   intent(in)  :: snow    
+  real(r8)  ,   intent(in)  :: fp      
+  real(r8)  ,   intent(in)  :: tv      
+  real(r8)  ,   intent(in)  :: sfctmp  
+  real(r8)  ,   intent(in)  :: tg      
+
+
+  real(r8)  , intent(inout) :: canliq  
+  real(r8)  , intent(inout) :: canice  
+
+
+  real(r8)  , intent(out)   :: qintr   
+  real(r8)  , intent(out)   :: qdripr  
+  real(r8)  , intent(out)   :: qthror  
+  real(r8)  , intent(out)   :: qints   
+  real(r8)  , intent(out)   :: qdrips  
+  real(r8)  , intent(out)   :: qthros  
+  real(r8)  , intent(out)   :: pahv    
+  real(r8)  , intent(out)   :: pahg    
+  real(r8)  , intent(out)   :: pahb    
+  real(r8)  , intent(out)   :: qrain   
+  real(r8)  , intent(out)   :: qsnow   
+  real(r8)  , intent(out)   :: snowhin 
+  real(r8)  , intent(out)   :: fwet    
+  real(r8)  , intent(out)   :: cmc     
+
+
+
+  real(r8)                            :: maxsno  
+  real(r8)                            :: maxliq  
+  real(r8)                            :: ft      
+  real(r8)                            :: fv      
+  real(r8)                            :: pah_ac  
+  real(r8)                            :: pah_cg  
+  real(r8)                            :: pah_ag  
+  real(r8)                            :: icedrip 
+
+
+
+      qintr   = 0.
+      qdripr  = 0.
+      qthror  = 0.
+      qintr   = 0.
+      qints   = 0.
+      qdrips  = 0.
+      qthros  = 0.
+      pah_ac  = 0.
+      pah_cg  = 0.
+      pah_ag  = 0.
+      pahv    = 0.
+      pahg    = 0.
+      pahb    = 0.
+      qrain   = 0.0
+      qsnow   = 0.0
+      snowhin = 0.0
+      icedrip = 0.0
+
+      maxliq =  parameters%ch2op * (elai+ esai)
+
+      if((elai+ esai).gt.0.) then
+         qintr  = fveg * rain * fp  
+         qintr  = min(qintr, (maxliq - canliq)/dt * (1.-exp(-rain*dt/maxliq)) )
+         qintr  = max(qintr, 0.)
+         qdripr = fveg * rain - qintr
+         qthror = (1.-fveg) * rain
+         canliq=max(0.,canliq+qintr*dt)
+      else
+         qintr  = 0.
+         qdripr = 0.
+         qthror = rain
+	 if(canliq > 0.) then             
+	   qdripr = qdripr + canliq/dt
+	   canliq = 0.0
+	 end if
+      end if
+      
+
+      pah_ac = fveg * rain * (cwat/1000.0) * (sfctmp - tv)
+      pah_cg = qdripr * (cwat/1000.0) * (tv - tg)
+      pah_ag = qthror * (cwat/1000.0) * (sfctmp - tg)
+
+
+      maxsno = 6.6*(0.27+46./bdfall) * (elai+ esai)
+
+      if((elai+ esai).gt.0.) then
+         qints = fveg * snow * fp
+         qints = min(qints, (maxsno - canice)/dt * (1.-exp(-snow*dt/maxsno)) )
+         qints = max(qints, 0.)
+         ft = max(0.0,(tv - 270.15) / 1.87e5)
+         fv = sqrt(uu*uu + vv*vv) / 1.56e5
+	 
+	 icedrip = max(0.,canice) * (fv+ft)    
+         qdrips = (fveg * snow - qints) + icedrip
+         qthros = (1.0-fveg) * snow
+         canice= max(0.,canice + (qints - icedrip)*dt)
+      else
+         qints  = 0.
+         qdrips = 0.
+         qthros = snow
+	 if(canice > 0.) then             
+	   qdrips = qdrips + canice/dt
+	   canice = 0.0
+	 end if
+      endif
+
+
+      if(canice.gt.0.) then
+           fwet = max(0.,canice) / max(maxsno,1.e-06)
+      else
+           fwet = max(0.,canliq) / max(maxliq,1.e-06)
+      endif
+      fwet = min(fwet, 1.) ** 0.667
+
+      cmc = canliq + canice
+
+      pah_ac = pah_ac +  fveg * snow * (cice/1000.0) * (sfctmp - tv)
+      pah_cg = pah_cg + qdrips * (cice/1000.0) * (tv - tg)
+      pah_ag = pah_ag + qthros * (cice/1000.0) * (sfctmp - tg)
+      
+      pahv = pah_ac - pah_cg
+      pahg = pah_cg
+      pahb = pah_ag
+      
+      if (fveg > 0.0 .and. fveg < 1.0) then
+        pahg = pahg / fveg         
+	pahb = pahb / (1.0-fveg)
+      elseif (fveg <= 0.0) then
+        pahb = pahg + pahb         
+        pahg = 0.0
+	pahv = 0.0
+      elseif (fveg >= 1.0) then
+	pahb = 0.0
+      end if
+      
+      pahv = max(pahv,-20.0)       
+      pahv = min(pahv,20.0)
+      pahg = max(pahg,-20.0)
+      pahg = min(pahg,20.0)
+      pahb = max(pahb,-20.0)
+      pahb = min(pahb,20.0)
+  
+      qrain   = qdripr + qthror
+      qsnow   = qdrips + qthros
+      snowhin = qsnow/bdfall
+
+      if (ist == 2 .and. tg > tfrz) then
+         qsnow   = 0.
+         snowhin = 0.
+      end if
+
+
+  end subroutine precip_heat
+
+
+
+  subroutine error (parameters,swdown ,fsa    ,fsr    ,fira   ,fsh    ,fcev   , &
+                    fgev   ,fctr   ,ssoil  ,beg_wb ,canliq ,canice , &
+                    sneqv  ,wa     ,smc    ,dzsnso ,prcp   ,ecan   , &
+                    etran  ,edir   ,runsrf ,runsub ,dt     ,nsoil  , &
+                    nsnow  ,ist    ,errwat, iloc   ,jloc   ,fveg   , &
+                    sav    ,sag    ,fsrv   ,fsrg   ,zwt    ,pah    , &
+                    pahv   ,pahg   ,pahb   )
+
+
+
+  implicit none
+
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer                        , intent(in) :: nsnow  
+  integer                        , intent(in) :: nsoil  
+  integer                        , intent(in) :: ist    
+  integer                        , intent(in) :: iloc   
+  integer                        , intent(in) :: jloc   
+  real(r8)                    , intent(in) :: swdown 
+  real(r8)                    , intent(in) :: fsa    
+  real(r8)                    , intent(in) :: fsr    
+  real(r8)                    , intent(in) :: fira   
+  real(r8)                    , intent(in) :: fsh    
+  real(r8)                    , intent(in) :: fcev   
+  real(r8)                    , intent(in) :: fgev   
+  real(r8)                    , intent(in) :: fctr   
+  real(r8)                    , intent(in) :: ssoil  
+  real(r8)                    , intent(in) :: fveg
+  real(r8)                    , intent(in) :: sav
+  real(r8)                    , intent(in) :: sag
+  real(r8)                    , intent(in) :: fsrv
+  real(r8)                    , intent(in) :: fsrg
+  real(r8)                    , intent(in) :: zwt
+
+  real(r8)                    , intent(in) :: prcp   
+  real(r8)                    , intent(in) :: ecan   
+  real(r8)                    , intent(in) :: etran  
+  real(r8)                    , intent(in) :: edir   
+  real(r8)                    , intent(in) :: runsrf 
+  real(r8)                    , intent(in) :: runsub 
+  real(r8)                    , intent(in) :: canliq 
+  real(r8)                    , intent(in) :: canice 
+  real(r8)                    , intent(in) :: sneqv  
+  real(r8)  , dimension(       1:nsoil), intent(in) :: smc    
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: dzsnso 
+  real(r8)                    , intent(in) :: wa     
+  real(r8)                    , intent(in) :: dt     
+  real(r8)                    , intent(in) :: beg_wb 
+  real(r8)                    , intent(out) :: errwat 
+  real(r8)  , intent(in)   :: pah     
+  real(r8)  , intent(in)   :: pahv    
+  real(r8)  , intent(in)   :: pahg    
+  real(r8)  , intent(in)   :: pahb    
+
+  integer                                     :: iz     
+  real(r8)                                   :: end_wb 
+  
+  real(r8)                                   :: erreng 
+  real(r8)                                   :: errsw  
+  real(r8)                                   :: fsrvg
+  character(len=256)                          :: message
+
+   errsw   = swdown - (fsa + fsr)
+
+   if (abs(errsw) > 0.01) then            
+   write(*,*) "vegetation!"
+   write(*,*) "swdown*fveg =",swdown*fveg
+   write(*,*) "fveg*(sav+sag) =",fveg*sav + sag
+   write(*,*) "fveg*(fsrv +fsrg)=",fveg*fsrv + fsrg
+   write(*,*) "ground!"
+   write(*,*) "(1-.fveg)*swdown =",(1.-fveg)*swdown
+   write(*,*) "(1.-fveg)*sag =",(1.-fveg)*sag
+   write(*,*) "(1.-fveg)*fsrg=",(1.-fveg)*fsrg
+   write(*,*) "fsrv   =",fsrv
+   write(*,*) "fsrg   =",fsrg
+   write(*,*) "fsr    =",fsr
+   write(*,*) "sav    =",sav
+   write(*,*) "sag    =",sag
+   write(*,*) "fsa    =",fsa
+
+      write(message,*) 'errsw =',errsw
+      print*, (trim(message))
+      print*, (&
+"stop in noah-mp")
+   end if
+
+   erreng = sav+sag-(fira+fsh+fcev+fgev+fctr+ssoil) +pah
+
+
+   if(abs(erreng) > 0.01) then
+      write(message,*) 'erreng =',erreng,' at i,j: ',iloc,jloc
+      print*, (trim(message))
+      write(message,'(a17,f10.4)') "net solar:       ",fsa
+      print*, (trim(message))
+      write(message,'(a17,f10.4)') "net longwave:    ",fira
+      print*, (trim(message))
+      write(message,'(a17,f10.4)') "total sensible:  ",fsh
+      print*, (trim(message))
+      write(message,'(a17,f10.4)') "canopy evap:     ",fcev
+      print*, (trim(message))
+      write(message,'(a17,f10.4)') "ground evap:     ",fgev
+      print*, (trim(message))
+      write(message,'(a17,f10.4)') "transpiration:   ",fctr
+      print*, (trim(message))
+      write(message,'(a17,f10.4)') "total ground:    ",ssoil
+      print*, (trim(message))
+      write(message,'(a17,4f10.4)') "precip advected: ",pah,pahv,pahg,pahb
+      print*, (trim(message))
+      write(message,'(a17,f10.4)') "precip: ",prcp
+      print*, (trim(message))
+      write(message,'(a17,f10.4)') "veg fraction: ",fveg
+      print*, (trim(message))
+      print*, (&
+"energy budget problem in noahmp lsm")
+   end if
+
+   if (ist == 1) then                                       
+        end_wb = canliq + canice + sneqv + wa
+        do iz = 1,nsoil
+          end_wb = end_wb + smc(iz) * dzsnso(iz) * 1000.
+        end do
+        errwat = end_wb-beg_wb-(prcp-ecan-etran-edir-runsrf-runsub)*dt
+
+        if(abs(errwat) > 0.1) then
+           if (errwat > 0) then
+              print*,  ('the model is gaining water (errwat is positive)')
+           else
+              print*, ('the model is losing water (errwat is negative)')
+           endif
+           write(message, *) 'errwat =',errwat, "kg m{-2} timestep{-1}"
+           print*, (trim(message))
+           write(message, &
+           '("    i      j     end_wb     beg_wb       prcp       ecan       edir      etran      runsrf     runsub")')
+           print*, (trim(message))
+           write(message,'(i6,1x,i6,1x,2f15.3,9f11.5)')iloc,jloc,end_wb,beg_wb,prcp*dt,ecan*dt,&
+                edir*dt,etran*dt,runsrf*dt,runsub*dt,zwt
+           print*, (trim(message))
+           print*, (&
+"water budget problem in noahmp lsm")
+        end if
+   else                 
+      errwat = 0.0      
+   endif
+
+ end subroutine error
+
+  subroutine energy (parameters,ice    ,vegtyp ,ist    ,nsnow  ,nsoil  , & 
+                     isnow  ,dt     ,rhoair ,sfcprs ,qair   , & 
+                     sfctmp ,thair  ,lwdn   ,uu     ,vv     ,zref   , & 
+                     co2air ,o2air  ,solad  ,solai  ,cosz   ,igs    , & 
+                     eair   ,tbot   ,zsnso  ,zsoil  , & 
+                     elai   ,esai   ,fwet   ,foln   ,         & 
+                     fveg   ,pahv   ,pahg   ,pahb   ,                 & 
+                     qsnow  ,dzsnso ,lat    ,canliq ,canice ,iloc   , jloc, & 
+		     z0wrf  ,                                         &
+                     imelt  ,snicev ,snliqv ,epore  ,t2m    ,fsno   , & 
+                     sav    ,sag    ,qmelt  ,fsa    ,fsr    ,taux   , & 
+                     tauy   ,fira   ,fsh    ,fcev   ,fgev   ,fctr   , & 
+                     trad   ,psn    ,apar   ,ssoil  ,btrani ,btran  , & 
+                     ponding,ts     ,latheav , latheag , frozen_canopy,frozen_ground,                       & 
+                     tv     ,tg     ,stc    ,snowh  ,eah    ,tah    , & 
+                     sneqvo ,sneqv  ,sh2o   ,smc    ,snice  ,snliq  , & 
+                     albold ,cm     ,ch     ,dx     ,dz8w   ,q2     , &   
+                     tauss  ,                                         & 
+                     qc     ,qsfc   ,psfc   , & 
+                     t2mv   ,t2mb   ,fsrv   , &
+                     fsrg   ,rssun  ,rssha  ,bgap   ,wgap,tgv,tgb,&
+                     q1     ,q2v    ,q2b    ,q2e    ,chv  ,chb, emissi,pah  ,&
+		     shg,shc,shb,evg,evb,ghv,ghb,irg,irc,irb,tr,evc,chleaf,chuc,chv2,chb2 , fire, albd_out, albi_out)  !--cheyz 
+
+
+  implicit none
+
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer                           , intent(in)    :: iloc
+  integer                           , intent(in)    :: jloc
+  integer                           , intent(in)    :: ice    
+  integer                           , intent(in)    :: vegtyp 
+  integer                           , intent(in)    :: ist    
+  integer                           , intent(in)    :: nsnow  
+  integer                           , intent(in)    :: nsoil  
+  integer                           , intent(in)    :: isnow  
+  real(r8)                        , intent(in)    :: dt     
+  real(r8)                        , intent(in)    :: qsnow  
+  real(r8)                        , intent(in)    :: rhoair 
+  real(r8)                        , intent(in)    :: eair   
+  real(r8)                        , intent(in)    :: sfcprs 
+  real(r8)                        , intent(in)    :: qair   
+  real(r8)                        , intent(in)    :: sfctmp 
+  real(r8)                        , intent(in)    :: thair  
+  real(r8)                        , intent(in)    :: lwdn   
+  real(r8)                        , intent(in)    :: uu     
+  real(r8)                        , intent(in)    :: vv     
+  real(r8)                        , dimension(       1:    2), intent(in)    :: solad  
+  real(r8)                        , dimension(       1:    2), intent(in)    :: solai  
+  real(r8)                        , dimension(       1:    2), intent(out)   :: albd_out !--cheyz
+  real(r8)                        , dimension(       1:    2), intent(out)   :: albi_out 
+  real(r8)                        , intent(in)    :: cosz   
+  real(r8)                        , intent(in)    :: elai   
+  real(r8)                        , intent(in)    :: esai   
+  real(r8)                        , intent(in)    :: fwet   
+  real(r8)                        , intent(in)    :: fveg   
+  real(r8)                        , intent(in)    :: lat    
+  real(r8)                        , intent(in)    :: canliq 
+  real(r8)                        , intent(in)    :: canice 
+  real(r8)                        , intent(in)    :: foln   
+  real(r8)                        , intent(in)    :: co2air 
+  real(r8)                        , intent(in)    :: o2air  
+  real(r8)                        , intent(in)    :: igs    
+
+  real(r8)                        , intent(in)    :: zref   
+  real(r8)                        , intent(in)    :: tbot   
+  real(r8)                        , dimension(-nsnow+1:nsoil), intent(in)    :: zsnso  
+  real(r8)                        , dimension(       1:nsoil), intent(in)    :: zsoil  
+  real(r8)                        , dimension(-nsnow+1:nsoil), intent(in)    :: dzsnso 
+  real(r8)  , intent(in)   :: pahv    
+  real(r8)  , intent(in)   :: pahg    
+  real(r8)  , intent(in)   :: pahb    
+
+
+  real(r8)                        , intent(in)    :: qc     
+  real(r8)                        , intent(inout) :: qsfc   
+  real(r8)                        , intent(in)    :: psfc   
+  real(r8)                        , intent(in)    :: dx     
+  real(r8)                        , intent(in)    :: dz8w   
+  real(r8)                        , intent(in)    :: q2     
+
+
+
+  real(r8)                        , intent(out)   :: z0wrf  
+  integer, dimension(-nsnow+1:nsoil), intent(out)   :: imelt  
+  real(r8)                        , dimension(-nsnow+1:    0), intent(out)   :: snicev 
+  real(r8)                        , dimension(-nsnow+1:    0), intent(out)   :: snliqv 
+  real(r8)                        , dimension(-nsnow+1:    0), intent(out)   :: epore  
+  real(r8)                        , intent(out)   :: fsno   
+  real(r8)                        , intent(out)   :: qmelt  
+  real(r8)                        , intent(out)   :: ponding
+  real(r8)                        , intent(out)   :: sav    
+  real(r8)                        , intent(out)   :: sag    
+  real(r8)                        , intent(out)   :: fsa    
+  real(r8)                        , intent(out)   :: fsr    
+  real(r8)                        , intent(out)   :: taux   
+  real(r8)                        , intent(out)   :: tauy   
+  real(r8)                        , intent(out)   :: fira   
+  real(r8)                        , intent(out)   :: fsh    
+  real(r8)                        , intent(out)   :: fcev   
+  real(r8)                        , intent(out)   :: fgev   
+  real(r8)                        , intent(out)   :: fctr   
+  real(r8)                        , intent(out)   :: trad   
+  real(r8)                        , intent(out)   :: t2m    
+  real(r8)                        , intent(out)   :: psn    
+  real(r8)                        , intent(out)   :: apar   
+  real(r8)                        , intent(out)   :: ssoil  
+  real(r8)                        , dimension(       1:nsoil), intent(out)   :: btrani 
+  real(r8)                        , intent(out)   :: btran  
+
+  real(r8)                        , intent(out)   :: latheav 
+  real(r8)                        , intent(out)   :: latheag 
+  logical                           , intent(out)   :: frozen_ground 
+  logical                           , intent(out)   :: frozen_canopy 
+
+
+  real(r8)                        , intent(out)   :: fsrv    
+  real(r8)                        , intent(out)   :: fsrg    
+  real(r8)  , intent(out) :: rssun        
+  real(r8)  , intent(out) :: rssha        
+
+
+
+  real(r8)                        , intent(out)   :: t2mv   
+  real(r8)                        , intent(out)   :: t2mb   
+  real(r8)                        , intent(out)   :: bgap
+  real(r8)                        , intent(out)   :: wgap
+
+
+
+  real(r8)                        , intent(inout) :: ts     
+  real(r8)                        , intent(inout) :: tv     
+  real(r8)                        , intent(inout) :: tg     
+  real(r8)                        , dimension(-nsnow+1:nsoil), intent(inout) :: stc    
+  real(r8)                        , intent(inout) :: snowh  
+  real(r8)                        , intent(inout) :: sneqv  
+  real(r8)                        , intent(inout) :: sneqvo 
+  real(r8)                        , dimension(       1:nsoil), intent(inout) :: sh2o   
+  real(r8)                        , dimension(       1:nsoil), intent(inout) :: smc    
+  real(r8)                        , dimension(-nsnow+1:    0), intent(inout) :: snice  
+  real(r8)                        , dimension(-nsnow+1:    0), intent(inout) :: snliq  
+  real(r8)                        , intent(inout) :: eah    
+  real(r8)                        , intent(inout) :: tah    
+  real(r8)                        , intent(inout) :: albold 
+  real(r8)                        , intent(inout) :: tauss  
+  real(r8)                        , intent(inout) :: cm     
+  real(r8)                        , intent(inout) :: ch     
+  real(r8)                        , intent(inout) :: q1
+
+  real(r8)  ,                               intent(out)   :: emissi
+  real(r8)  ,                               intent(out)   :: pah    
+
+
+  integer                                           :: iz     
+  logical                                           :: veg    
+  real(r8)                                                  :: ur     
+  real(r8)                                                  :: zlvl   
+  real(r8)                                                  :: fsun   
+  real(r8)                                                  :: rb     
+  real(r8)                                                  :: rsurf  
+  real(r8)                                                  :: l_rsurf
+  real(r8)                                                  :: d_rsurf
+  real(r8)                                                  :: bevap  
+  real(r8)                                                  :: mol    
+  real(r8)                                                  :: vai    
+  real(r8)                                                  :: cwp    
+  real(r8)                                                  :: zpd    
+  real(r8)                                                  :: z0m    
+  real(r8)                                                  :: zpdg   
+  real(r8)                                                  :: z0mg   
+  real(r8)                                                  :: emv    
+  real(r8)                                                  :: emg    
+  !real(r8)                                                  :: fire
+  real(r8), intent(out)                                      :: fire !--cheyz 20200427    
+
+  real(r8)                                                  :: laisun 
+  real(r8)                                                  :: laisha 
+  real(r8)                                                  :: psnsun 
+  real(r8)                                                  :: psnsha 
+
+
+
+
+  real(r8)                                                  :: parsun 
+  real(r8)                                                  :: parsha 
+
+  real(r8)  , dimension(-nsnow+1:nsoil)                   :: fact   
+  real(r8)  , dimension(-nsnow+1:nsoil)                   :: df     
+  real(r8)  , dimension(-nsnow+1:nsoil)                   :: hcpct  
+  real(r8)                                                  :: bdsno  
+  real(r8)                                                  :: fmelt  
+  real(r8)                                                  :: gx     
+  real(r8)  , dimension(-nsnow+1:nsoil)                   :: phi    
+
+  real(r8)                                                  :: gammav  
+  real(r8)                                                  :: gammag  
+  real(r8)                                                  :: psi    
+  real(r8)                                                  :: rhsur  
+
+
+
+  real(r8)                                                  :: tauxv  
+  real(r8)                                                  :: tauyv  
+  real(r8)  ,intent(out)                                              :: irc    
+  real(r8)  ,intent(out)                                              :: irg    
+  real(r8)  ,intent(out)                                              :: shc    
+  real(r8)  ,intent(out)                                              :: shg    
+
+  real(r8)  ,intent(out)                                  :: q2v
+  real(r8)  ,intent(out)                                  :: q2b
+  real(r8)  ,intent(out)                                  :: q2e
+
+  real(r8)  ,intent(out)                                              :: evc    
+  real(r8)  ,intent(out)                                              :: evg    
+  real(r8)  ,intent(out)                                              :: tr     
+  real(r8)  ,intent(out)                                              :: ghv    
+  real(r8)  ,intent(out)                                  :: tgv    
+  real(r8)                                                  :: cmv    
+  real(r8)  ,intent(out)                                  :: chv    
+
+
+
+  real(r8)                                                  :: tauxb  
+  real(r8)                                                  :: tauyb  
+  real(r8)  ,intent(out)                                              :: irb    
+  real(r8)  ,intent(out)                                              :: shb    
+  real(r8)  ,intent(out)                                              :: evb    
+  real(r8)  ,intent(out)                                              :: ghb    
+  real(r8)  ,intent(out)                                  :: tgb    
+  real(r8)                                                  :: cmb    
+  real(r8)  ,intent(out)                                  :: chb    
+  real(r8)  ,intent(out)                                  :: chleaf 
+  real(r8)  ,intent(out)                                  :: chuc   
+
+  real(r8)  ,intent(out)                                  :: chv2    
+  real(r8)  ,intent(out)                                  :: chb2    
+  real(r8)                           :: noahmpres
+
+
+
+  real(r8)  , parameter                   :: mpe    = 1.e-6
+  real(r8)  , parameter                   :: psiwlt = -150.  
+  real(r8)  , parameter                   :: z0     = 0.01   
+
+
+
+
+    tauxv     = 0.    
+    tauyv     = 0.
+    irc       = 0.
+    shc       = 0.
+    irg       = 0.
+    shg       = 0.
+    evg       = 0.       
+    evc       = 0.
+    tr        = 0.
+    ghv       = 0.       
+    psnsun    = 0.
+    psnsha    = 0.
+    t2mv      = 0.
+    q2v       = 0.
+    chv       = 0.
+    chleaf    = 0.
+    chuc      = 0.
+    chv2      = 0.
+
+
+
+    ur = max( sqrt(uu**2.+vv**2.), 1. )
+
+
+
+    vai = elai + esai
+    veg = .false.
+    if(vai > 0.) veg = .true.
+
+
+
+     fsno = 0.
+!#ifndef REGLSM
+! yizhang modify for grist, to avoid small values, lead to unrealistic all-field snowc=1
+!     if(snowh.gt.1e-6_r8)  then 
+!#else
+     if(snowh.gt.0.)  then
+!#endif
+         bdsno    = sneqv / snowh
+         fmelt    = (bdsno/100.)**parameters%mfsno
+         fsno     = tanh( snowh /(2.5* z0 * fmelt))
+     endif
+#ifndef REGLSM
+         fsno     = snowh/(0.1+snowh) ! CLM3
+#endif
+
+
+
+     if(ist == 2) then
+       if(tg .le. tfrz) then
+         z0mg = 0.01 * (1.0-fsno) + fsno * parameters%z0sno
+       else
+         z0mg = 0.01  
+       end if
+     else
+       z0mg = z0 * (1.0-fsno) + fsno * parameters%z0sno
+     end if
+
+
+
+     zpdg  = snowh
+     if(veg) then
+        z0m  = parameters%z0mvt
+        zpd  = 0.65 * parameters%hvt
+        if(snowh.gt.zpd) zpd  = snowh
+     else
+        z0m  = z0mg
+        zpd  = zpdg
+     end if
+
+     zlvl = max(zpd,parameters%hvt) + zref
+     if(zpdg >= zlvl) zlvl = zpdg + zref
+
+
+
+
+     cwp = parameters%cwpvt
+
+
+
+  call thermoprop (parameters,nsoil   ,nsnow   ,isnow   ,ist     ,dzsnso  , & 
+                   dt      ,snowh   ,snice   ,snliq   , & 
+                   smc     ,sh2o    ,tg      ,stc     ,ur      , & 
+                   lat     ,z0m     ,zlvl    ,vegtyp  , & 
+                   df      ,hcpct   ,snicev  ,snliqv  ,epore   , & 
+                   fact    )                              
+
+
+
+  call  radiation (parameters,vegtyp  ,ist     ,ice     ,nsoil   , & 
+                   sneqvo  ,sneqv   ,dt      ,cosz    ,snowh   , & 
+                   tg      ,tv      ,fsno    ,qsnow   ,fwet    , & 
+                   elai    ,esai    ,smc     ,solad   ,solai   , & 
+                   fveg    ,iloc    ,jloc    ,                   & 
+                   albold  ,tauss   ,                            & 
+                   fsun    ,laisun  ,laisha  ,parsun  ,parsha  , & 
+                   sav     ,sag     ,fsr     ,fsa     ,fsrv    , & 
+                   fsrg    ,bgap    ,wgap,  albd_out, albi_out   )  !--cheyz           
+
+
+
+     emv = 1. - exp(-(elai+esai)/1.0)
+     if (ice == 1) then
+       emg = 0.98*(1.-fsno) + 1.0*fsno
+     else
+       emg = parameters%eg(ist)*(1.-fsno) + 1.0*fsno
+     end if
+
+
+   
+     btran = 0.
+
+     if(ist ==1 ) then
+       do iz = 1, parameters%nroot
+          if(opt_btr == 1) then                  
+            gx    = (sh2o(iz)-parameters%smcwlt(iz)) / (parameters%smcref(iz)-parameters%smcwlt(iz))
+          end if
+          if(opt_btr == 2) then                  
+            psi   = max(psiwlt,-parameters%psisat(iz)*(max(0.01,sh2o(iz))/parameters%smcmax(iz))**(-parameters%bexp(iz)) )
+            gx    = (1.-psi/psiwlt)/(1.+parameters%psisat(iz)/psiwlt)
+          end if
+          if(opt_btr == 3) then                  
+            psi   = max(psiwlt,-parameters%psisat(iz)*(max(0.01,sh2o(iz))/parameters%smcmax(iz))**(-parameters%bexp(iz)) )
+            gx    = 1.-exp(-5.8*(log(psiwlt/psi))) 
+          end if
+       
+          gx = min(1.,max(0.,gx))
+          btrani(iz) = max(mpe,dzsnso(iz) / (-zsoil(parameters%nroot)) * gx)
+          btran      = btran + btrani(iz)
+       end do
+       btran = max(mpe,btran)
+
+       btrani(1:parameters%nroot) = btrani(1:parameters%nroot)/btran
+     end if
+
+
+
+     bevap = max(0.0,sh2o(1)/parameters%smcmax(1))
+     if(ist == 2) then
+       rsurf = 1.          
+       rhsur = 1.0
+     else
+
+       if(opt_rsf == 1 .or. opt_rsf == 4) then
+         
+         
+         
+         l_rsurf = (-zsoil(1)) * ( exp ( (1.0 - min(1.0,sh2o(1)/parameters%smcmax(1))) ** 5 ) - 1.0 ) / ( 2.71828 - 1.0 ) 
+         d_rsurf = 2.2e-5 * parameters%smcmax(1) * parameters%smcmax(1) * ( 1.0 - parameters%smcwlt(1) / parameters%smcmax(1) ) ** (2.0+3.0/parameters%bexp(1))
+         rsurf = l_rsurf / d_rsurf
+       elseif(opt_rsf == 2) then
+         rsurf = fsno * 1. + (1.-fsno)* exp(8.25-4.225*bevap) 
+       elseif(opt_rsf == 3) then
+         rsurf = fsno * 1. + (1.-fsno)* exp(8.25-6.0  *bevap) 
+       endif
+
+       if(opt_rsf == 4) then  
+         rsurf = 1. / (fsno * (1./parameters%rsurf_snow) + (1.-fsno) * (1./max(rsurf, 0.001)))
+       endif
+
+       if(sh2o(1) < 0.01 .and. snowh == 0.) rsurf = 1.e6
+       psi   = -parameters%psisat(1)*(max(0.01,sh2o(1))/parameters%smcmax(1))**(-parameters%bexp(1))   
+       rhsur = fsno + (1.-fsno) * exp(psi*grav/(rw*tg)) 
+     end if
+
+
+     if (parameters%urban_flag .and. snowh == 0. ) then
+        rsurf = 1.e6
+     endif
+
+
+
+     if (tv .gt. tfrz) then           
+        latheav = hvap                
+	frozen_canopy = .false.
+     else
+        latheav = hsub
+	frozen_canopy = .true.
+     end if
+     gammav = cpair*sfcprs/(0.622*latheav)
+
+     if (tg .gt. tfrz) then
+        latheag = hvap
+	frozen_ground = .false.
+     else
+        latheag = hsub
+	frozen_ground = .true.
+     end if
+     gammag = cpair*sfcprs/(0.622*latheag)
+
+    if (veg .and. fveg > 0) then 
+    tgv = tg
+    cmv = cm
+    chv = ch
+    call vege_flux (parameters,nsnow   ,nsoil   ,isnow   ,vegtyp  ,veg     , & 
+                    dt      ,sav     ,sag     ,lwdn    ,ur      , & 
+                    uu      ,vv      ,sfctmp  ,thair   ,qair    , & 
+                    eair    ,rhoair  ,snowh   ,vai     ,gammav   ,gammag   , & 
+                    fwet    ,laisun  ,laisha  ,cwp     ,dzsnso  , & 
+                    zlvl    ,zpd     ,z0m     ,fveg    , & 
+                    z0mg    ,emv     ,emg     ,canliq  ,fsno, & 
+                    canice  ,stc     ,df      ,rssun   ,rssha   , & 
+                    rsurf   ,latheav ,latheag ,parsun  ,parsha  ,igs     , & 
+                    foln    ,co2air  ,o2air   ,btran   ,sfcprs  , & 
+                    rhsur   ,iloc    ,jloc    ,q2      ,pahv  ,pahg  , & 
+                    eah     ,tah     ,tv      ,tgv     ,cmv     , & 
+                    chv     ,dx      ,dz8w    ,                   & 
+                    tauxv   ,tauyv   ,irg     ,irc     ,shg     , & 
+                    shc     ,evg     ,evc     ,tr      ,ghv     , & 
+                    t2mv    ,psnsun  ,psnsha  ,                   & 
+
+                    qc      ,qsfc    ,psfc    , & 
+                    q2v     ,chv2, chleaf, chuc)               
+
+    end if
+
+    tgb = tg
+    cmb = cm
+    chb = ch
+    call bare_flux (parameters,nsnow   ,nsoil   ,isnow   ,dt      ,sag     , & 
+                    lwdn    ,ur      ,uu      ,vv      ,sfctmp  , & 
+                    thair   ,qair    ,eair    ,rhoair  ,snowh   , & 
+                    dzsnso  ,zlvl    ,zpdg    ,z0mg    ,fsno,          & 
+                    emg     ,stc     ,df      ,rsurf   ,latheag  , & 
+                    gammag   ,rhsur   ,iloc    ,jloc    ,q2      ,pahb  , & 
+                    tgb     ,cmb     ,chb     ,                   & 
+                    tauxb   ,tauyb   ,irb     ,shb     ,evb     , & 
+                    ghb     ,t2mb    ,dx      ,dz8w    ,vegtyp  , & 
+
+                    qc      ,qsfc    ,psfc    , & 
+                    sfcprs  ,q2b,   chb2)                          
+
+
+    if (veg .and. fveg > 0) then 
+        taux  = fveg * tauxv     + (1.0 - fveg) * tauxb
+        tauy  = fveg * tauyv     + (1.0 - fveg) * tauyb
+        fira  = fveg * irg       + (1.0 - fveg) * irb       + irc
+        fsh   = fveg * shg       + (1.0 - fveg) * shb       + shc
+        fgev  = fveg * evg       + (1.0 - fveg) * evb
+        ssoil = fveg * ghv       + (1.0 - fveg) * ghb
+        fcev  = evc
+        fctr  = tr
+	     pah   = fveg * pahg      + (1.0 - fveg) * pahb   + pahv
+        tg    = fveg * tgv       + (1.0 - fveg) * tgb
+        t2m   = fveg * t2mv      + (1.0 - fveg) * t2mb
+        ts    = fveg * tv        + (1.0 - fveg) * tgb
+        cm    = fveg * cmv       + (1.0 - fveg) * cmb      
+        ch    = fveg * chv       + (1.0 - fveg) * chb
+        q1    = fveg * (eah*0.622/(sfcprs - 0.378*eah)) + (1.0 - fveg)*qsfc
+        q2e   = fveg * q2v       + (1.0 - fveg) * q2b
+        z0wrf = z0m
+  
+    else
+        taux  = tauxb
+        tauy  = tauyb
+        fira  = irb
+        fsh   = shb
+        fgev  = evb
+        ssoil = ghb
+        tg    = tgb
+        t2m   = t2mb
+        fcev  = 0.
+        fctr  = 0.
+	     pah   = pahb
+        ts    = tg
+        cm    = cmb
+        ch    = chb
+        q1    = qsfc
+        q2e   = q2b
+        rssun = 0.0
+        rssha = 0.0
+        tgv   = tgb
+        chv   = chb
+        z0wrf = z0mg
+  
+    end if
+
+    fire = lwdn + fira
+   
+
+    if(fire <=0.) then
+       write(6,*) 'emitted longwave <0; skin t may be wrong due to inconsistent'
+       write(6,*) 'input of shdfac with lai'
+       write(6,*) iloc, jloc, 'shdfac=',fveg,'vai=',vai,'tv=',tv,'tg=',tg, tgb,tgv
+       write(6,*) 'lwdn=',lwdn,'fira=',fira,'snowh=',snowh
+       print*, (&
+"stop in noah-mp")
+        !stop "===============cheyz test============================"
+    end if
+
+ 
+    
+    emissi = fveg * ( emg*(1-emv) + emv + emv*(1-emv)*(1-emg) ) + &
+         (1-fveg) * emg
+
+    trad = ( ( fire - (1-emissi)*lwdn ) / (emissi*sb) ) ** 0.25
+
+    
+    
+
+    apar = parsun*laisun + parsha*laisha
+    psn  = psnsun*laisun + psnsha*laisha
+
+
+
+    call tsnosoi (parameters,ice     ,nsoil   ,nsnow   ,isnow   ,ist     , & 
+                  tbot    ,zsnso   ,ssoil   ,df      ,hcpct   , & 
+                  sag     ,dt      ,snowh   ,dzsnso  , & 
+                  tg      ,iloc    ,jloc    ,                   & 
+                  stc     )                                       
+
+
+     if(opt_stc == 2) then
+      if (snowh > 0.05 .and. tg > tfrz) then
+        tgv = tfrz
+        tgb = tfrz
+          if (veg .and. fveg > 0) then
+             tg    = fveg * tgv       + (1.0 - fveg) * tgb
+             ts    = fveg * tv        + (1.0 - fveg) * tgb
+          else
+             tg    = tgb
+             ts    = tgb
+          end if
+      end if
+     end if
+
+
+ call phasechange (parameters,nsnow   ,nsoil   ,isnow   ,dt      ,fact    , & 
+                   dzsnso  ,hcpct   ,ist     ,iloc    ,jloc    , & 
+                   stc     ,snice   ,snliq   ,sneqv   ,snowh   , & 
+                   smc     ,sh2o    ,                            & 
+                   qmelt   ,imelt   ,ponding )                     
+
+
+  end subroutine energy
+
+
+
+  subroutine thermoprop (parameters,nsoil   ,nsnow   ,isnow   ,ist     ,dzsnso  , & 
+                         dt      ,snowh   ,snice   ,snliq   , & 
+                         smc     ,sh2o    ,tg      ,stc     ,ur      , & 
+                         lat     ,z0m     ,zlvl    ,vegtyp  , & 
+                         df      ,hcpct   ,snicev  ,snliqv  ,epore   , & 
+                         fact    )                                       
+
+  implicit none
+  type (noahmp_parameters), intent(in) :: parameters
+  integer                        , intent(in)  :: nsoil   
+  integer                        , intent(in)  :: nsnow   
+  integer                        , intent(in)  :: isnow   
+  integer                        , intent(in)  :: ist     
+  real(r8)                    , intent(in)  :: dt      
+  real(r8)  , dimension(-nsnow+1:    0), intent(in)  :: snice   
+  real(r8)  , dimension(-nsnow+1:    0), intent(in)  :: snliq   
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in)  :: dzsnso  
+  real(r8)  , dimension(       1:nsoil), intent(in)  :: smc     
+  real(r8)  , dimension(       1:nsoil), intent(in)  :: sh2o    
+  real(r8)                    , intent(in)  :: snowh   
+  real(r8)  ,                            intent(in)  :: tg      
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in)  :: stc     
+  real(r8)  ,                            intent(in)  :: ur      
+  real(r8)  ,                            intent(in)  :: lat     
+  real(r8)  ,                            intent(in)  :: z0m     
+  real(r8)  ,                            intent(in)  :: zlvl    
+  integer                        , intent(in)  :: vegtyp  
+
+
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(out) :: df      
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(out) :: hcpct   
+  real(r8)  , dimension(-nsnow+1:    0), intent(out) :: snicev  
+  real(r8)  , dimension(-nsnow+1:    0), intent(out) :: snliqv  
+  real(r8)  , dimension(-nsnow+1:    0), intent(out) :: epore   
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(out) :: fact    
+
+
+
+  integer :: iz
+  real(r8)  , dimension(-nsnow+1:    0)              :: cvsno   
+  real(r8)  , dimension(-nsnow+1:    0)              :: tksno   
+  real(r8)  , dimension(       1:nsoil)              :: sice    
+
+
+
+
+    call csnow (parameters,isnow   ,nsnow   ,nsoil   ,snice   ,snliq   ,dzsnso  , & 
+                tksno   ,cvsno   ,snicev  ,snliqv  ,epore   )   
+
+    do iz = isnow+1, 0
+      df   (iz) = tksno(iz)
+      hcpct(iz) = cvsno(iz)
+    end do
+
+
+
+    do  iz = 1, nsoil
+       sice(iz)  = smc(iz) - sh2o(iz)
+       hcpct(iz) = sh2o(iz)*cwat + (1.0-parameters%smcmax(iz))*parameters%csoil &
+                + (parameters%smcmax(iz)-smc(iz))*cpair + sice(iz)*cice
+       call tdfcnd (parameters,iz,df(iz), smc(iz), sh2o(iz))
+    end do
+       
+    if ( parameters%urban_flag ) then
+       do iz = 1,nsoil
+         df(iz) = 3.24
+       end do
+    endif
+
+
+    if(ist == 2) then
+       do iz = 1, nsoil 
+         if(stc(iz) > tfrz) then
+            hcpct(iz) = cwat
+            df(iz)    = tkwat  
+         else
+            hcpct(iz) = cice
+            df(iz)    = tkice 
+         end if
+       end do
+    end if
+
+
+
+    do iz = isnow+1,nsoil
+     fact(iz) = dt/(hcpct(iz)*dzsnso(iz))
+    end do
+
+
+
+    if(isnow == 0) then
+       df(1) = (df(1)*dzsnso(1)+0.35*snowh)      / (snowh    +dzsnso(1)) 
+    else
+       df(1) = (df(1)*dzsnso(1)+df(0)*dzsnso(0)) / (dzsnso(0)+dzsnso(1))
+    end if
+  end subroutine thermoprop
+
+
+
+  subroutine csnow (parameters,isnow   ,nsnow   ,nsoil   ,snice   ,snliq   ,dzsnso  , & 
+                    tksno   ,cvsno   ,snicev  ,snliqv  ,epore   )   
+
+
+
+  implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer,                          intent(in) :: isnow  
+  integer                        ,  intent(in) :: nsnow  
+  integer                        ,  intent(in) :: nsoil  
+  real(r8)  , dimension(-nsnow+1:    0),  intent(in) :: snice  
+  real(r8)  , dimension(-nsnow+1:    0),  intent(in) :: snliq  
+  real(r8)  , dimension(-nsnow+1:nsoil),  intent(in) :: dzsnso 
+  real(r8)  , dimension(-nsnow+1:    0), intent(out) :: cvsno  
+  real(r8)  , dimension(-nsnow+1:    0), intent(out) :: tksno  
+  real(r8)  , dimension(-nsnow+1:    0), intent(out) :: snicev 
+  real(r8)  , dimension(-nsnow+1:    0), intent(out) :: snliqv 
+  real(r8)  , dimension(-nsnow+1:    0), intent(out) :: epore  
+  integer :: iz
+  real(r8)  , dimension(-nsnow+1:    0) :: bdsnoi  
+
+
+  do iz = isnow+1, 0
+      snicev(iz)   = min(1., snice(iz)/(dzsnso(iz)*denice) )
+      epore(iz)    = 1. - snicev(iz)
+      snliqv(iz)   = min(epore(iz),snliq(iz)/(dzsnso(iz)*denh2o))
+  enddo
+
+  do iz = isnow+1, 0
+      bdsnoi(iz) = (snice(iz)+snliq(iz))/dzsnso(iz)
+      cvsno(iz) = cice*snicev(iz)+cwat*snliqv(iz)
+
+  enddo
+
+  do iz = isnow+1, 0
+     tksno(iz) = 3.2217e-6*bdsnoi(iz)**2.           
+  enddo
+
+  end subroutine csnow
+
+  subroutine tdfcnd (parameters, isoil, df, smc, sh2o)
+    implicit none
+  type (noahmp_parameters), intent(in) :: parameters
+    integer, intent(in)    :: isoil  
+    real(r8)  , intent(in)       :: smc    
+    real(r8)  , intent(in)       :: sh2o   
+    real(r8)  , intent(out)      :: df     
+    real(r8)  :: ake
+    real(r8)  :: gammd
+    real(r8)  :: thkdry
+    real(r8)  :: thko     
+    real(r8)  :: thkqtz   
+    real(r8)  :: thksat   
+    real(r8)  :: thks     
+    real(r8)  :: thkw     
+    real(r8)  :: satratio
+    real(r8)  :: xu
+    real(r8)  :: xunfroz
+
+
+
+    satratio = smc / parameters%smcmax(isoil)
+    thkw = 0.57
+
+    thko = 2.0
+
+
+    thkqtz = 7.7
+
+
+    thks = (thkqtz ** parameters%quartz(isoil))* (thko ** (1. - parameters%quartz(isoil)))
+
+
+    xunfroz = 1.0                       
+    if(smc > 0.) xunfroz = sh2o / smc
+
+    xu = xunfroz * parameters%smcmax(isoil)
+
+
+    thksat = thks ** (1. - parameters%smcmax(isoil))* tkice ** (parameters%smcmax(isoil) - xu)* thkw **   &
+         (xu)
+
+
+    gammd = (1. - parameters%smcmax(isoil))*2700.
+
+    thkdry = (0.135* gammd+ 64.7)/ (2700. - 0.947* gammd)
+
+    if ( (sh2o + 0.0005) <  smc ) then
+       ake = satratio
+    else
+
+       if ( satratio >  0.1 ) then
+          ake = log10 (satratio) + 1.0
+       else
+          ake = 0.0
+       end if
+    end if
+    df = ake * (thksat - thkdry) + thkdry
+  end subroutine tdfcnd
+
+
+
+  subroutine radiation (parameters,vegtyp  ,ist     ,ice     ,nsoil   , & 
+                        sneqvo  ,sneqv   ,dt      ,cosz    ,snowh   , & 
+                        tg      ,tv      ,fsno    ,qsnow   ,fwet    , & 
+                        elai    ,esai    ,smc     ,solad   ,solai   , & 
+                        fveg    ,iloc    ,jloc    ,                   & 
+                        albold  ,tauss   ,                            & 
+                        fsun    ,laisun  ,laisha  ,parsun  ,parsha  , & 
+                        sav     ,sag     ,fsr     ,fsa     ,fsrv    , &
+                        fsrg    ,bgap    ,wgap, albd_out, albi_out)            
+
+  implicit none
+
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer, intent(in)                  :: iloc
+  integer, intent(in)                  :: jloc
+  integer, intent(in)                  :: vegtyp 
+  integer, intent(in)                  :: ist    
+  integer, intent(in)                  :: ice    
+  integer, intent(in)                  :: nsoil  
+
+  real(r8)  , intent(in)                     :: dt     
+  real(r8)  , intent(in)                     :: qsnow  
+  real(r8)  , intent(in)                     :: sneqvo 
+  real(r8)  , intent(in)                     :: sneqv  
+  real(r8)  , intent(in)                     :: snowh  
+  real(r8)  , intent(in)                     :: cosz   
+  real(r8)  , intent(in)                     :: tg     
+  real(r8)  , intent(in)                     :: tv     
+  real(r8)  , intent(in)                     :: elai   
+  real(r8)  , intent(in)                     :: esai   
+  real(r8)  , intent(in)                     :: fwet   
+  real(r8)  , dimension(1:nsoil), intent(in) :: smc    
+  real(r8)  , dimension(1:2)    , intent(in) :: solad  
+  real(r8)  , dimension(1:2)    , intent(in) :: solai  
+  real(r8)  , intent(in)                     :: fsno   
+  real(r8)  , intent(in)                     :: fveg   
+
+
+  real(r8)  ,                  intent(inout) :: albold 
+  real(r8)  ,                  intent(inout) :: tauss  
+
+
+  real(r8)  , intent(out)                    :: fsun   
+  real(r8)  , intent(out)                    :: laisun 
+  real(r8)  , intent(out)                    :: laisha 
+  real(r8)  , intent(out)                    :: parsun 
+  real(r8)  , intent(out)                    :: parsha 
+  real(r8)  , intent(out)                    :: sav    
+  real(r8)  , intent(out)                    :: sag    
+  real(r8)  , intent(out)                    :: fsa    
+  real(r8)  , intent(out)                    :: fsr 
+  real(r8)  , intent(out)                    :: fsrv    
+  real(r8)  , intent(out)                    :: fsrg    
+  real(r8)  , intent(out)                    :: bgap
+  real(r8)  , intent(out)                    :: wgap
+  real(r8)                                   :: fage   
+  real(r8)  , dimension(1:2)                 :: albgrd 
+  real(r8)  , dimension(1:2)                 :: albgri
+  real(r8)  , dimension(1:2)                 :: albd     
+  real(r8)  , dimension(1:2)                 :: albi 
+  real(r8)  , dimension(1:2), intent(out)                 :: albd_out     !--cheyz
+  real(r8)  , dimension(1:2), intent(out)                 :: albi_out    !--cheyz
+  real(r8)  , dimension(1:2)                 :: fabd   
+  real(r8)  , dimension(1:2)                 :: fabi   
+  real(r8)  , dimension(1:2)                 :: ftdd   
+  real(r8)  , dimension(1:2)                 :: ftid   
+  real(r8)  , dimension(1:2)                 :: ftii   
+
+  real(r8)  , dimension(1:2)                 :: frevi
+  real(r8)  , dimension(1:2)                 :: frevd
+  real(r8)  , dimension(1:2)                 :: fregi
+  real(r8)  , dimension(1:2)                 :: fregd
+  real(r8)                                   :: fsha   
+  real(r8)                                   :: vai    
+  real(r8)  ,parameter :: mpe = 1.e-6
+  logical veg  
+
+
+
+
+
+   call albedo (parameters,vegtyp ,ist    ,ice    ,nsoil  , & 
+                dt     ,cosz   ,fage   ,elai   ,esai   , & 
+                tg     ,tv     ,snowh  ,fsno   ,fwet   , & 
+                smc    ,sneqvo ,sneqv  ,qsnow  ,fveg   , & 
+                iloc   ,jloc   ,                         & 
+                albold ,tauss                          , & 
+                albgrd ,albgri ,albd   ,albi   ,fabd   , & 
+                fabi   ,ftdd   ,ftid   ,ftii   ,fsun   , & 
+                frevi  ,frevd   ,fregd ,fregi  ,bgap   , & 
+                wgap)
+
+      albd_out=albd  !--cheyz
+      albi_out=albi
+
+
+     fsha = 1.-fsun
+     laisun = elai*fsun
+     laisha = elai*fsha
+     vai = elai+ esai
+     if (vai .gt. 0.) then
+        veg = .true.
+     else
+        veg = .false.
+     end if
+
+   call surrad (parameters,mpe    ,fsun   ,fsha   ,elai   ,vai    , & 
+                laisun ,laisha ,solad  ,solai  ,fabd   , & 
+                fabi   ,ftdd   ,ftid   ,ftii   ,albgrd , & 
+                albgri ,albd   ,albi   ,iloc   ,jloc   , & 
+                parsun ,parsha ,sav    ,sag    ,fsa    , & 
+                fsr    ,                                 & 
+                frevi  ,frevd  ,fregd  ,fregi  ,fsrv   , & 
+                fsrg)
+
+  end subroutine radiation
+
+
+
+  subroutine albedo (parameters,vegtyp ,ist    ,ice    ,nsoil  , & 
+                     dt     ,cosz   ,fage   ,elai   ,esai   , & 
+                     tg     ,tv     ,snowh  ,fsno   ,fwet   , & 
+                     smc    ,sneqvo ,sneqv  ,qsnow  ,fveg   , & 
+                     iloc   ,jloc   ,                         & 
+                     albold ,tauss                          , & 
+                     albgrd ,albgri ,albd   ,albi   ,fabd   , & 
+                     fabi   ,ftdd   ,ftid   ,ftii   ,fsun   , & 
+                     frevi  ,frevd  ,fregd  ,fregi  ,bgap   , & 
+                     wgap)
+
+
+  implicit none
+
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer,                  intent(in)  :: iloc
+  integer,                  intent(in)  :: jloc
+  integer,                  intent(in)  :: nsoil  
+  integer,                  intent(in)  :: vegtyp 
+  integer,                  intent(in)  :: ist    
+  integer,                  intent(in)  :: ice    
+
+  real(r8)  ,                     intent(in)  :: dt     
+  real(r8)  ,                     intent(in)  :: qsnow  
+  real(r8)  ,                     intent(in)  :: cosz   
+  real(r8)  ,                     intent(in)  :: snowh  
+  real(r8)  ,                     intent(in)  :: tg     
+  real(r8)  ,                     intent(in)  :: tv     
+  real(r8)  ,                     intent(in)  :: elai   
+  real(r8)  ,                     intent(in)  :: esai   
+  real(r8)  ,                     intent(in)  :: fsno   
+  real(r8)  ,                     intent(in)  :: fwet   
+  real(r8)  ,                     intent(in)  :: sneqvo 
+  real(r8)  ,                     intent(in)  :: sneqv  
+  real(r8)  ,                     intent(in)  :: fveg   
+  real(r8)  , dimension(1:nsoil), intent(in)  :: smc    
+
+
+  real(r8)  ,                  intent(inout)  :: albold 
+  real(r8)  ,                  intent(inout)  :: tauss  
+
+
+  real(r8)  , dimension(1:    2), intent(out) :: albgrd 
+  real(r8)  , dimension(1:    2), intent(out) :: albgri 
+  real(r8)  , dimension(1:    2), intent(out) :: albd   
+  real(r8)  , dimension(1:    2), intent(out) :: albi   
+  real(r8)  , dimension(1:    2), intent(out) :: fabd   
+  real(r8)  , dimension(1:    2), intent(out) :: fabi   
+  real(r8)  , dimension(1:    2), intent(out) :: ftdd   
+  real(r8)  , dimension(1:    2), intent(out) :: ftid   
+  real(r8)  , dimension(1:    2), intent(out) :: ftii   
+  real(r8)  ,                     intent(out) :: fsun   
+
+  real(r8)  , dimension(1:    2), intent(out) :: frevd
+  real(r8)  , dimension(1:    2), intent(out) :: frevi
+  real(r8)  , dimension(1:    2), intent(out) :: fregd
+  real(r8)  , dimension(1:    2), intent(out) :: fregi
+  real(r8)  , intent(out) :: bgap
+  real(r8)  , intent(out) :: wgap
+  real(r8)           :: fage     
+  real(r8)           :: alb
+  integer              :: ib       
+  integer              :: nband    
+  integer              :: ic       
+  real(r8)           :: wl       
+  real(r8)           :: ws       
+  real(r8)           :: mpe      
+  real(r8)  , dimension(1:2) :: rho      
+  real(r8)  , dimension(1:2) :: tau      
+  real(r8)  , dimension(1:2) :: ftdi     
+  real(r8)  , dimension(1:2) :: albsnd   
+  real(r8)  , dimension(1:2) :: albsni   
+  real(r8)           :: vai      
+  real(r8)           :: gdir     
+  real(r8)           :: ext      
+
+  nband = 2
+  mpe = 1.e-06
+  bgap = 0.
+  wgap = 0.
+
+
+  do ib = 1, nband
+    albd(ib) = 0.
+    albi(ib) = 0.
+    albgrd(ib) = 0.
+    albgri(ib) = 0.
+    fabd(ib) = 0.
+    fabi(ib) = 0.
+    ftdd(ib) = 0.
+    ftid(ib) = 0.
+    ftii(ib) = 0.
+    if (ib.eq.1) fsun = 0.
+  end do
+
+  if(cosz <= 0) goto 100
+
+  do ib = 1, nband
+    vai = elai + esai
+    wl  = elai / max(vai,mpe)
+    ws  = esai / max(vai,mpe)
+    rho(ib) = max(parameters%rhol(ib)*wl+parameters%rhos(ib)*ws, mpe)
+    tau(ib) = max(parameters%taul(ib)*wl+parameters%taus(ib)*ws, mpe)
+  end do
+
+   call snow_age (parameters,dt,tg,sneqvo,sneqv,tauss,fage)
+
+  if(opt_alb == 1) &
+     call snowalb_bats (parameters,nband, fsno,cosz,fage,albsnd,albsni)
+  if(opt_alb == 2) then
+     call snowalb_class (parameters,nband,qsnow,dt,alb,albold,albsnd,albsni,iloc,jloc)
+     albold = alb
+  end if
+
+  call groundalb (parameters,nsoil   ,nband   ,ice     ,ist     , & 
+                  fsno    ,smc     ,albsnd  ,albsni  ,cosz    , & 
+                  tg      ,iloc    ,jloc    ,                   & 
+                  albgrd  ,albgri  )                              
+
+
+  do ib = 1, nband
+      ic = 0     ! direct 
+      call twostream (parameters,ib     ,ic      ,vegtyp  ,cosz    ,vai    , & 
+                      fwet   ,tv      ,albgrd  ,albgri  ,rho    , & 
+                      tau    ,fveg    ,ist     ,iloc    ,jloc   , & 
+                      fabd   ,albd    ,ftdd    ,ftid    ,gdir   , &
+                      frevd  ,fregd   ,bgap    ,wgap)
+
+      ic = 1     ! diffuse 
+      call twostream (parameters,ib     ,ic      ,vegtyp  ,cosz    ,vai    , & 
+                      fwet   ,tv      ,albgrd  ,albgri  ,rho    , & 
+                      tau    ,fveg    ,ist     ,iloc    ,jloc   , & 
+                      fabi   ,albi    ,ftdi    ,ftii    ,gdir   , & 
+                      frevi  ,fregi   ,bgap    ,wgap)
+  end do
+
+! sunlit fraction of canopy. set FSUN = 0 if FSUN < 0.01.
+
+  ext = gdir/cosz * sqrt(1.-rho(1)-tau(1))
+  fsun = (1.-exp(-ext*vai)) / max(ext*vai,mpe)
+  ext = fsun
+
+  if (ext .lt. 0.01) then
+     wl = 0.
+  else
+     wl = ext 
+  end if
+  fsun = wl
+
+100 continue
+
+end subroutine albedo
+
+
+
+subroutine surrad (parameters,mpe     ,fsun    ,fsha    ,elai    ,vai     , & 
+                     laisun  ,laisha  ,solad   ,solai   ,fabd    , & 
+                     fabi    ,ftdd    ,ftid    ,ftii    ,albgrd  , & 
+                     albgri  ,albd    ,albi    ,iloc    ,jloc    , & 
+                     parsun  ,parsha  ,sav     ,sag     ,fsa     , & 
+                     fsr     , & 
+                     frevi   ,frevd   ,fregd   ,fregi   ,fsrv    , &
+                     fsrg) 
+
+  implicit none
+
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer, intent(in)              :: iloc
+  integer, intent(in)              :: jloc
+  real(r8)  , intent(in)                 :: mpe     
+
+  real(r8)  , intent(in)                 :: fsun    
+  real(r8)  , intent(in)                 :: fsha    
+  real(r8)  , intent(in)                 :: elai    
+  real(r8)  , intent(in)                 :: vai     
+  real(r8)  , intent(in)                 :: laisun  
+  real(r8)  , intent(in)                 :: laisha  
+
+  real(r8)  , dimension(1:2), intent(in) :: solad   
+  real(r8)  , dimension(1:2), intent(in) :: solai   
+  real(r8)  , dimension(1:2), intent(in) :: fabd    
+  real(r8)  , dimension(1:2), intent(in) :: fabi    
+  real(r8)  , dimension(1:2), intent(in) :: ftdd    
+  real(r8)  , dimension(1:2), intent(in) :: ftid    
+  real(r8)  , dimension(1:2), intent(in) :: ftii    
+  real(r8)  , dimension(1:2), intent(in) :: albgrd  
+  real(r8)  , dimension(1:2), intent(in) :: albgri  
+  real(r8)  , dimension(1:2), intent(in) :: albd    
+  real(r8)  , dimension(1:2), intent(in) :: albi    
+  real(r8)  , dimension(1:2), intent(in) :: frevd    
+  real(r8)  , dimension(1:2), intent(in) :: frevi    
+  real(r8)  , dimension(1:2), intent(in) :: fregd    
+  real(r8)  , dimension(1:2), intent(in) :: fregi 
+  real(r8)  , intent(out)                :: parsun  
+  real(r8)  , intent(out)                :: parsha  
+  real(r8)  , intent(out)                :: sav     
+  real(r8)  , intent(out)                :: sag     
+  real(r8)  , intent(out)                :: fsa     
+  real(r8)  , intent(out)                :: fsr     
+  real(r8)  , intent(out)                :: fsrv    
+  real(r8)  , intent(out)                :: fsrg    
+
+  integer                          :: ib      
+  integer                          :: nband   
+
+  real(r8)                      :: abs     
+  real(r8)                      :: rnir    
+  real(r8)                      :: rvis    
+  real(r8)                      :: laifra  
+  real(r8)                      :: trd     
+  real(r8)                      :: tri     
+  real(r8)  , dimension(1:2)             :: cad     
+  real(r8)  , dimension(1:2)             :: cai     
+
+   nband = 2
+    sag = 0.
+    sav = 0.
+    fsa = 0.
+
+
+
+  do ib = 1, nband
+
+    cad(ib) = solad(ib)*fabd(ib)    
+    cai(ib) = solai(ib)*fabi(ib)
+    sav     = sav + cad(ib) + cai(ib)
+    fsa     = fsa + cad(ib) + cai(ib)
+    trd = solad(ib)*ftdd(ib)
+    tri = solad(ib)*ftid(ib) + solai(ib)*ftii(ib)
+
+    abs = trd*(1.-albgrd(ib)) + tri*(1.-albgri(ib))
+    sag = sag + abs
+    fsa = fsa + abs
+  end do
+
+
+     laifra = elai / max(vai,mpe)
+     if (fsun .gt. 0.) then
+        parsun = (cad(1)+fsun*cai(1)) * laifra / max(laisun,mpe)
+        parsha = (fsha*cai(1))*laifra / max(laisha,mpe)
+     else
+        parsun = 0.
+        parsha = (cad(1)+cai(1))*laifra /max(laisha,mpe)
+     endif
+
+     rvis = albd(1)*solad(1) + albi(1)*solai(1)
+     rnir = albd(2)*solad(2) + albi(2)*solai(2)
+     fsr  = rvis + rnir
+     fsrv = frevd(1)*solad(1)+frevi(1)*solai(1)+frevd(2)*solad(2)+frevi(2)*solai(2)
+     fsrg = fregd(1)*solad(1)+fregi(1)*solai(1)+fregd(2)*solad(2)+fregi(2)*solai(2)
+
+  end subroutine surrad
+
+
+
+  subroutine snow_age (parameters,dt,tg,sneqvo,sneqv,tauss,fage)
+
+  implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+   real(r8)  , intent(in) :: dt        
+   real(r8)  , intent(in) :: tg        
+   real(r8)  , intent(in) :: sneqvo    
+   real(r8)  , intent(in) :: sneqv  
+   real(r8)  , intent(out) :: fage  
+   real(r8)  , intent(inout) :: tauss      
+   real(r8)     :: tage       
+   real(r8)     :: age1       
+   real(r8)     :: age2       
+   real(r8)     :: age3       
+   real(r8)     :: dela       
+   real(r8)     :: sge        
+   real(r8)     :: dels       
+   real(r8)     :: dela0      
+   real(r8)     :: arg        
+
+
+
+   if(sneqv.le.0.0) then
+          tauss = 0.
+   else if (sneqv.gt.800.) then
+          tauss = 0.
+   else
+          dela0 = 1.e-6*dt
+          arg   = 5.e3*(1./tfrz-1./tg)
+          age1  = exp(arg)
+          age2  = exp(amin1(0.,10.*arg))
+          age3  = 0.3
+          tage  = age1+age2+age3
+          dela  = dela0*tage
+          dels  = amax1(0.0,sneqv-sneqvo) / parameters%swemx
+          sge   = (tauss+dela)*(1.0-dels)
+          tauss = amax1(0.,sge)
+   endif
+
+   fage= tauss/(tauss+1.)
+
+  end subroutine snow_age
+
+
+
+  subroutine snowalb_bats (parameters,nband,fsno,cosz,fage,albsnd,albsni)
+
+  implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer,intent(in) :: nband  
+
+  real(r8)  ,intent(in) :: cosz    
+  real(r8)  ,intent(in) :: fsno    
+  real(r8)  ,intent(in) :: fage    
+  real(r8)  , dimension(1:2),intent(out) :: albsnd 
+  real(r8)  , dimension(1:2),intent(out) :: albsni 
+  integer :: ib          
+  real(r8)            :: fzen                 
+  real(r8)            :: cf1                  
+  real(r8)            :: sl2                  
+  real(r8)            :: sl1                  
+  real(r8)            :: sl                   
+  real(r8)  , parameter :: c1 = 0.2  
+  real(r8)  , parameter :: c2 = 0.5  
+
+        albsnd(1: nband) = 0.
+        albsni(1: nband) = 0.
+
+        sl=2.0
+        sl1=1./sl
+        sl2=2.*sl
+        cf1=((1.+sl1)/(1.+sl2*cosz)-sl1)
+        fzen=amax1(cf1,0.)
+
+        albsni(1)=0.95*(1.-c1*fage)         
+        albsni(2)=0.65*(1.-c2*fage)        
+
+        albsnd(1)=albsni(1)+0.4*fzen*(1.-albsni(1))    
+        albsnd(2)=albsni(2)+0.4*fzen*(1.-albsni(2))    
+
+  end subroutine snowalb_bats
+
+  subroutine snowalb_class (parameters,nband,qsnow,dt,alb,albold,albsnd,albsni,iloc,jloc)
+
+  implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer,intent(in) :: iloc 
+  integer,intent(in) :: jloc 
+  integer,intent(in) :: nband  
+
+  real(r8)  ,intent(in) :: qsnow     
+  real(r8)  ,intent(in) :: dt        
+  real(r8)  ,intent(in) :: albold    
+
+  real(r8)  ,                intent(inout) :: alb        
+
+  real(r8)  , dimension(1:2),intent(out) :: albsnd 
+  real(r8)  , dimension(1:2),intent(out) :: albsni 
+  integer :: ib          
+
+
+        albsnd(1: nband) = 0.
+        albsni(1: nband) = 0.
+         alb = 0.55 + (albold-0.55) * exp(-0.01*dt/3600.)
+
+         if (qsnow > 0.) then
+           alb = alb + min(qsnow,parameters%swemx/dt) * (0.84-alb)/(parameters%swemx/dt)
+         endif
+
+         albsni(1)= alb         
+         albsni(2)= alb         
+         albsnd(1)= alb         
+         albsnd(2)= alb         
+
+  end subroutine snowalb_class
+
+
+
+  subroutine groundalb (parameters,nsoil   ,nband   ,ice     ,ist     , & 
+                        fsno    ,smc     ,albsnd  ,albsni  ,cosz    , & 
+                        tg      ,iloc    ,jloc    ,                   & 
+                        albgrd  ,albgri  )                              
+
+  implicit none
+
+
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer,                  intent(in)  :: iloc   
+  integer,                  intent(in)  :: jloc   
+  integer,                  intent(in)  :: nsoil  
+  integer,                  intent(in)  :: nband  
+  integer,                  intent(in)  :: ice    
+  integer,                  intent(in)  :: ist    
+  real(r8)  ,                     intent(in)  :: fsno   
+  real(r8)  ,                     intent(in)  :: tg     
+  real(r8)  ,                     intent(in)  :: cosz   
+  real(r8)  , dimension(1:nsoil), intent(in)  :: smc    
+  real(r8)  , dimension(1:    2), intent(in)  :: albsnd 
+  real(r8)  , dimension(1:    2), intent(in)  :: albsni 
+
+
+
+  real(r8)  , dimension(1:    2), intent(out) :: albgrd 
+  real(r8)  , dimension(1:    2), intent(out) :: albgri 
+
+
+
+  integer                               :: ib     
+  real(r8)                           :: inc    
+  real(r8)                           :: albsod 
+  real(r8)                           :: albsoi 
+
+
+  do ib = 1, nband
+        inc = max(0.11-0.40*smc(1), 0.)
+        if (ist .eq. 1)  then                     
+           albsod = min(parameters%albsat(ib)+inc,parameters%albdry(ib))
+           albsoi = albsod
+        else if (tg .gt. tfrz) then               
+           albsod = 0.06/(max(0.01,cosz)**1.7 + 0.15)
+           albsoi = 0.06
+        else                                      
+           albsod = parameters%alblak(ib)
+           albsoi = albsod
+        end if
+
+        albgrd(ib) = albsod*(1.-fsno) + albsnd(ib)*fsno
+        albgri(ib) = albsoi*(1.-fsno) + albsni(ib)*fsno
+  end do
+
+  end subroutine groundalb
+
+
+
+  subroutine twostream (parameters,ib     ,ic      ,vegtyp  ,cosz    ,vai    , & 
+                        fwet   ,t       ,albgrd  ,albgri  ,rho    , & 
+                        tau    ,fveg    ,ist     ,iloc    ,jloc   , & 
+                        fab    ,fre     ,ftd     ,fti     ,gdir   , & 
+                        frev   ,freg    ,bgap    ,wgap)
+
+  implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+   integer,              intent(in)  :: iloc    
+   integer,              intent(in)  :: jloc    
+   integer,              intent(in)  :: ist     
+   integer,              intent(in)  :: ib      
+   integer,              intent(in)  :: ic      
+   integer,              intent(in)  :: vegtyp  
+
+   real(r8)  ,                 intent(in)  :: cosz    
+   real(r8)  ,                 intent(in)  :: vai     
+   real(r8)  ,                 intent(in)  :: fwet    
+   real(r8)  ,                 intent(in)  :: t       
+
+   real(r8)  , dimension(1:2), intent(in)  :: albgrd  
+   real(r8)  , dimension(1:2), intent(in)  :: albgri  
+   real(r8)  , dimension(1:2), intent(in)  :: rho     
+   real(r8)  , dimension(1:2), intent(in)  :: tau     
+   real(r8)  ,                 intent(in)  :: fveg    
+
+   real(r8)  , dimension(1:2), intent(out) :: fab     
+   real(r8)  , dimension(1:2), intent(out) :: fre     
+   real(r8)  , dimension(1:2), intent(out) :: ftd     
+   real(r8)  , dimension(1:2), intent(out) :: fti     
+   real(r8)  ,                 intent(out) :: gdir    
+   real(r8)  , dimension(1:2), intent(out) :: frev    
+   real(r8)  , dimension(1:2), intent(out) :: freg    
+
+   real(r8)                       :: omega   
+   real(r8)                       :: omegal  
+   real(r8)                       :: betai   
+   real(r8)                       :: betail  
+   real(r8)                       :: betad   
+   real(r8)                       :: betadl  
+   real(r8)                       :: ext     
+   real(r8)                       :: avmu    
+
+   real(r8)                       :: coszi   
+   real(r8)                       :: asu     
+   real(r8)                       :: chil    
+
+   real(r8)                       :: tmp0,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9
+   real(r8)                       :: p1,p2,p3,p4,s1,s2,u1,u2,u3
+   real(r8)                       :: b,c,d,d1,d2,f,h,h1,h2,h3,h4,h5,h6,h7,h8,h9,h10
+   real(r8)                       :: phi1,phi2,sigma
+   real(r8)                       :: ftds,ftis,fres
+   real(r8)                       :: denfveg
+   real(r8)                       :: vai_spread
+
+   real(r8)                       :: freveg,frebar,ftdveg,ftiveg,ftdbar,ftibar
+   real(r8)                       :: thetaz
+   real(r8)  , parameter :: pai = 3.14159265 
+   real(r8)            :: hd       
+   real(r8)            :: bb       
+   real(r8)            :: thetap   
+   real(r8)            :: fa       
+   real(r8)            :: newvai   
+
+   real(r8)  ,intent(inout) :: bgap     
+   real(r8)  ,intent(inout) :: wgap     
+
+   real(r8)            :: kopen    
+   real(r8)            :: gap      
+
+
+
+     vai_spread = vai
+     if(vai == 0.0) then
+         gap     = 1.0
+         kopen   = 1.0
+     else
+         if(opt_rad == 1) then
+	   denfveg = -log(max(1.0-fveg,0.01))/(pai*parameters%rc**2)
+           hd      = parameters%hvt - parameters%hvb
+           bb      = 0.5 * hd           
+           thetap  = atan(bb/parameters%rc * tan(acos(max(0.01,cosz))) )
+           
+           bgap    = exp(-denfveg * pai * parameters%rc**2/cos(thetap) )
+           fa      = vai/(1.33 * pai * parameters%rc**3.0 *(bb/parameters%rc)*denfveg)
+           newvai  = hd*fa
+           wgap    = (1.0-bgap) * exp(-0.5*newvai/cosz)
+           gap     = min(1.0-fveg, bgap+wgap)
+
+           kopen   = 0.05
+         end if
+
+         if(opt_rad == 2) then
+           gap     = 0.0
+           kopen   = 0.0
+         end if
+
+         if(opt_rad == 3) then
+           gap     = 1.0-fveg
+           kopen   = 1.0-fveg
+         end if
+     end if
+
+     coszi  = max(0.001, cosz)
+     chil   = min( max(parameters%xl, -0.4), 0.6)
+     if (abs(chil) .le. 0.01) chil = 0.01
+     phi1   = 0.5 - 0.633*chil - 0.330*chil*chil
+     phi2   = 0.877 * (1.-2.*phi1)
+     gdir   = phi1 + phi2*coszi
+     ext    = gdir/coszi
+     avmu   = ( 1. - phi1/phi2 * log((phi1+phi2)/phi1) ) / phi2
+     omegal = rho(ib) + tau(ib)
+     tmp0   = gdir + phi2*coszi
+     tmp1   = phi1*coszi
+     asu    = 0.5*omegal*gdir/tmp0 * ( 1.-tmp1/tmp0*log((tmp1+tmp0)/tmp1) )
+     betadl = (1.+avmu*ext)/(omegal*avmu*ext)*asu
+     betail = 0.5 * ( rho(ib)+tau(ib) + (rho(ib)-tau(ib))   &
+            * ((1.+chil)/2.)**2 ) / omegal
+
+
+     if (t .gt. tfrz) then                                
+        tmp0 = omegal
+        tmp1 = betadl
+        tmp2 = betail
+     else
+        tmp0 =   (1.-fwet)*omegal        + fwet*parameters%omegas(ib)
+        tmp1 = ( (1.-fwet)*omegal*betadl + fwet*parameters%omegas(ib)*parameters%betads ) / tmp0
+        tmp2 = ( (1.-fwet)*omegal*betail + fwet*parameters%omegas(ib)*parameters%betais ) / tmp0
+     end if
+
+     omega = tmp0
+     betad = tmp1
+     betai = tmp2
+
+     b = 1. - omega + omega*betai
+     c = omega*betai
+     tmp0 = avmu*ext
+     d = tmp0 * omega*betad
+     f = tmp0 * omega*(1.-betad)
+     tmp1 = b*b - c*c
+     h = sqrt(tmp1) / avmu
+     sigma = tmp0*tmp0 - tmp1
+     if ( abs (sigma) < 1.e-6 ) sigma = sign(1.e-6_r8,sigma)
+     p1 = b + avmu*h
+     p2 = b - avmu*h
+     p3 = b + tmp0
+     p4 = b - tmp0
+     s1 = exp(-h*vai)
+     s2 = exp(-ext*vai)
+     if (ic .eq. 0) then
+        u1 = b - c/albgrd(ib)
+        u2 = b - c*albgrd(ib)
+        u3 = f + c*albgrd(ib)
+     else
+        u1 = b - c/albgri(ib)
+        u2 = b - c*albgri(ib)
+        u3 = f + c*albgri(ib)
+     end if
+     tmp2 = u1 - avmu*h
+     tmp3 = u1 + avmu*h
+     d1 = p1*tmp2/s1 - p2*tmp3*s1
+     tmp4 = u2 + avmu*h
+     tmp5 = u2 - avmu*h
+     d2 = tmp4/s1 - tmp5*s1
+     h1 = -d*p4 - c*f
+     tmp6 = d - h1*p3/sigma
+     tmp7 = ( d - c - h1/sigma*(u1+tmp0) ) * s2
+     h2 = ( tmp6*tmp2/s1 - p2*tmp7 ) / d1
+     h3 = - ( tmp6*tmp3*s1 - p1*tmp7 ) / d1
+     h4 = -f*p3 - c*d
+     tmp8 = h4/sigma
+     tmp9 = ( u3 - tmp8*(u2-tmp0) ) * s2
+     h5 = - ( tmp8*tmp4/s1 + tmp9 ) / d2
+     h6 = ( tmp8*tmp5*s1 + tmp9 ) / d2
+     h7 = (c*tmp2) / (d1*s1)
+     h8 = (-c*tmp3*s1) / d1
+     h9 = tmp4 / (d2*s1)
+     h10 = (-tmp5*s1) / d2
+
+
+     if (ic .eq. 0) then
+        ftds = s2                           *(1.0-gap) + gap
+        ftis = (h4*s2/sigma + h5*s1 + h6/s1)*(1.0-gap)
+     else
+        ftds = 0.
+        ftis = (h9*s1 + h10/s1)*(1.0-kopen) + kopen
+     end if
+     ftd(ib) = ftds
+     fti(ib) = ftis
+
+
+     if (ic .eq. 0) then
+        fres   = (h1/sigma + h2 + h3)*(1.0-gap  ) + albgrd(ib)*gap        
+        freveg = (h1/sigma + h2 + h3)*(1.0-gap  ) 
+        frebar = albgrd(ib)*gap                   
+     else
+        fres   = (h7 + h8) *(1.0-kopen) + albgri(ib)*kopen        
+        freveg = (h7 + h8) *(1.0-kopen) + albgri(ib)*kopen
+        frebar = 0                                
+     end if
+     fre(ib) = fres
+
+     frev(ib) = freveg 
+     freg(ib) = frebar 
+
+
+
+     fab(ib) = 1. - fre(ib) - (1.-albgrd(ib))*ftd(ib) &
+                            - (1.-albgri(ib))*fti(ib)
+
+
+  end subroutine twostream
+
+
+
+  subroutine vege_flux(parameters,nsnow   ,nsoil   ,isnow   ,vegtyp  ,veg     , & 
+                       dt      ,sav     ,sag     ,lwdn    ,ur      , & 
+                       uu      ,vv      ,sfctmp  ,thair   ,qair    , & 
+                       eair    ,rhoair  ,snowh   ,vai     ,gammav   ,gammag,  & 
+                       fwet    ,laisun  ,laisha  ,cwp     ,dzsnso  , & 
+                       zlvl    ,zpd     ,z0m     ,fveg    , & 
+                       z0mg    ,emv     ,emg     ,canliq  ,fsno,          & 
+                       canice  ,stc     ,df      ,rssun   ,rssha   , & 
+                       rsurf   ,latheav ,latheag  ,parsun  ,parsha  ,igs     , & 
+                       foln    ,co2air  ,o2air   ,btran   ,sfcprs  , & 
+                       rhsur   ,iloc    ,jloc    ,q2      ,pahv    ,pahg     , & 
+                       eah     ,tah     ,tv      ,tg      ,cm      , & 
+                       ch      ,dx      ,dz8w    ,                   & 
+                       tauxv   ,tauyv   ,irg     ,irc     ,shg     , & 
+                       shc     ,evg     ,evc     ,tr      ,gh      , & 
+                       t2mv    ,psnsun  ,psnsha  ,                   & 
+                       qc      ,qsfc    ,psfc    ,                   & 
+                       q2v     ,cah2    ,chleaf  ,chuc    )            
+
+
+  implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer,                         intent(in) :: iloc   
+  integer,                         intent(in) :: jloc   
+  logical,                         intent(in) :: veg    
+  integer,                         intent(in) :: nsnow  
+  integer,                         intent(in) :: nsoil  
+  integer,                         intent(in) :: isnow  
+  integer,                         intent(in) :: vegtyp 
+  real(r8)  ,                            intent(in) :: fveg   
+  real(r8)  ,                            intent(in) :: sav    
+  real(r8)  ,                            intent(in) :: sag    
+  real(r8)  ,                            intent(in) :: lwdn   
+  real(r8)  ,                            intent(in) :: ur     
+  real(r8)  ,                            intent(in) :: uu     
+  real(r8)  ,                            intent(in) :: vv     
+  real(r8)  ,                            intent(in) :: sfctmp 
+  real(r8)  ,                            intent(in) :: thair  
+  real(r8)  ,                            intent(in) :: eair   
+  real(r8)  ,                            intent(in) :: qair   
+  real(r8)  ,                            intent(in) :: rhoair 
+  real(r8)  ,                            intent(in) :: dt     
+  real(r8)  ,                            intent(in) :: fsno     
+
+  real(r8)  ,                            intent(in) :: snowh  
+  real(r8)  ,                            intent(in) :: fwet   
+  real(r8)  ,                            intent(in) :: cwp    
+
+  real(r8)  ,                            intent(in) :: vai    
+  real(r8)  ,                            intent(in) :: laisun 
+  real(r8)  ,                            intent(in) :: laisha 
+  real(r8)  ,                            intent(in) :: zlvl   
+  real(r8)  ,                            intent(in) :: zpd    
+  real(r8)  ,                            intent(in) :: z0m    
+  real(r8)  ,                            intent(in) :: z0mg   
+  real(r8)  ,                            intent(in) :: emv    
+  real(r8)  ,                            intent(in) :: emg    
+
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: stc    
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: df     
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: dzsnso 
+  real(r8)  ,                            intent(in) :: canliq 
+  real(r8)  ,                            intent(in) :: canice 
+  real(r8)  ,                            intent(in) :: rsurf  
+
+
+  real(r8)  ,                            intent(in) :: gammav  
+  real(r8)  ,                            intent(in) :: latheav 
+  real(r8)  ,                            intent(in) :: gammag  
+  real(r8)  ,                            intent(in) :: latheag 
+  real(r8)  ,                            intent(in) :: parsun 
+  real(r8)  ,                            intent(in) :: parsha 
+  real(r8)  ,                            intent(in) :: foln   
+  real(r8)  ,                            intent(in) :: co2air 
+  real(r8)  ,                            intent(in) :: o2air  
+  real(r8)  ,                            intent(in) :: igs    
+  real(r8)  ,                            intent(in) :: sfcprs 
+  real(r8)  ,                            intent(in) :: btran  
+  real(r8)  ,                            intent(in) :: rhsur  
+
+  real(r8)                    , intent(in) :: qc     
+  real(r8)                    , intent(in) :: psfc   
+  real(r8)                    , intent(in) :: dx     
+  real(r8)                    , intent(in) :: q2     
+  real(r8)                    , intent(in) :: dz8w   
+  real(r8)                    , intent(inout) :: qsfc   
+  real(r8)  , intent(in)   :: pahv  
+  real(r8)  , intent(in)   :: pahg  
+
+
+  real(r8)  ,                         intent(inout) :: eah    
+  real(r8)  ,                         intent(inout) :: tah    
+  real(r8)  ,                         intent(inout) :: tv     
+  real(r8)  ,                         intent(inout) :: tg     
+  real(r8)  ,                         intent(inout) :: cm     
+  real(r8)  ,                         intent(inout) :: ch     
+
+
+
+  real(r8)  ,                           intent(out) :: tauxv  
+  real(r8)  ,                           intent(out) :: tauyv  
+  real(r8)  ,                           intent(out) :: irc    
+  real(r8)  ,                           intent(out) :: shc    
+  real(r8)  ,                           intent(out) :: evc    
+  real(r8)  ,                           intent(out) :: irg    
+  real(r8)  ,                           intent(out) :: shg    
+  real(r8)  ,                           intent(out) :: evg    
+  real(r8)  ,                           intent(out) :: tr     
+  real(r8)  ,                           intent(out) :: gh     
+  real(r8)  ,                           intent(out) :: t2mv   
+  real(r8)  ,                           intent(out) :: psnsun 
+  real(r8)  ,                           intent(out) :: psnsha 
+  real(r8)  ,                           intent(out) :: chleaf 
+  real(r8)  ,                           intent(out) :: chuc   
+
+  real(r8)  ,                           intent(out) :: q2v
+  real(r8)            :: cah    
+  real(r8)            :: u10v    
+  real(r8)            :: v10v    
+  real(r8)            :: wspd
+
+  real(r8)            :: cw           
+  real(r8)            :: fv           
+  real(r8)            :: wstar        
+  real(r8)            :: z0h          
+  real(r8)            :: z0hg         
+  real(r8)            :: rb           
+  real(r8)            :: ramc         
+  real(r8)            :: rahc         
+  real(r8)            :: rawc         
+  real(r8)            :: ramg         
+  real(r8)            :: rahg         
+  real(r8)            :: rawg         
+
+  real(r8)  , intent(out) :: rssun        
+  real(r8)  , intent(out) :: rssha        
+
+  real(r8)            :: mol          
+  real(r8)            :: dtv          
+  real(r8)            :: dtg          
+
+  real(r8)            :: air,cir      
+  real(r8)            :: csh          
+  real(r8)            :: cev          
+  real(r8)            :: cgh          
+  real(r8)            :: atr,ctr      
+  real(r8)            :: ata,bta      
+  real(r8)            :: aea,bea      
+
+  real(r8)            :: estv         
+  real(r8)            :: estg         
+  real(r8)            :: destv        
+  real(r8)            :: destg        
+  real(r8)            :: esatw        
+  real(r8)            :: esati        
+  real(r8)            :: dsatw        
+  real(r8)            :: dsati        
+
+  real(r8)            :: fm           
+  real(r8)            :: fh           
+  real(r8)            :: fhg          
+  real(r8)            :: hcan         
+
+  real(r8)            :: a            
+  real(r8)            :: b            
+  real(r8)            :: cvh          
+  real(r8)            :: caw          
+  real(r8)            :: ctw          
+  real(r8)            :: cew          
+  real(r8)            :: cgw          
+  real(r8)            :: cond         
+  real(r8)            :: uc           
+  real(r8)            :: kh           
+  real(r8)            :: h            
+  real(r8)            :: hg           
+  real(r8)            :: moz          
+  real(r8)            :: mozg         
+  real(r8)            :: mozold       
+  real(r8)            :: fm2          
+  real(r8)            :: fh2          
+  real(r8)            :: ch2          
+  real(r8)            :: thstar          
+
+  real(r8)            :: thvair
+  real(r8)            :: thah 
+  real(r8)            :: rahc2        
+  real(r8)            :: rawc2        
+  real(r8)  , intent(out):: cah2         
+  real(r8)            :: ch2v         
+  real(r8)            :: cq2v         
+  real(r8)            :: eah2         
+  real(r8)            :: qfx        
+  real(r8)            :: e1           
+  real(r8)            :: vaie         
+  real(r8)            :: laisune      
+  real(r8)            :: laishae      
+  integer :: k         
+  integer :: iter      
+  integer, parameter :: niterc = 20   
+  integer, parameter :: niterg = 5   
+  integer :: mozsgn    
+  real(r8)                       :: mpe       
+  integer :: liter     
+  real(r8)            :: t, tdc       
+  character(len=80) ::  message
+
+  tdc(t)   = min( 50., max(-50.,(t-tfrz)) )
+
+        mpe = 1e-6
+        liter = 0
+        fv = 0.1
+        dtv = 0.
+        dtg = 0.
+        moz    = 0.
+        mozsgn = 0
+        mozold = 0.
+        hg     = 0.
+        h      = 0.
+        qfx    = 0.
+        vaie    = min(6.,vai    / fveg)
+        laisune = min(6.,laisun / fveg)
+        laishae = min(6.,laisha / fveg)
+
+        t = tdc(tg)
+        call esat(t, esatw, esati, dsatw, dsati)
+        if (t .gt. 0.) then
+           estg = esatw
+        else
+           estg = esati
+        end if
+#ifndef AMIPW_PHYSICS
+        qsfc = 0.622*eair/(psfc-0.378*eair)  
+#endif
+        hcan = parameters%hvt
+        uc = ur*log(hcan/z0m)/log(zlvl/z0m)
+        uc = ur*log((hcan-zpd+z0m)/z0m)/log(zlvl/z0m)   
+        if((hcan-zpd) <= 0.) then
+          write(message,*) "critical problem: hcan <= zpd"
+          print*,  ( message )
+          write(message,*) 'i,j point=',iloc, jloc
+          print*,  ( message )
+          write(message,*) 'hcan  =',hcan
+          print*,  ( message )
+          write(message,*) 'zpd   =',zpd
+          print*,  ( message )
+          write (message, *) 'snowh =',snowh
+          print*,  ( message )
+          print*, (&
+"critical problem in module_sf_noahmplsm:vegeflux" )
+        end if
+
+        air = -emv*(1.+(1.-emv)*(1.-emg))*lwdn - emv*emg*sb*tg**4  
+        cir = (2.-emv*(1.-emg))*emv*sb
+
+      loop1: do iter = 1, niterc    
+
+       if(iter == 1) then
+            z0h  = z0m  
+            z0hg = z0mg
+       else
+            z0h  = z0m    
+            z0hg = z0mg   
+       end if
+
+
+       if(opt_sfc == 1) then
+          call sfcdif1(parameters,iter   ,sfctmp ,rhoair ,h      ,qair   , & 
+                       zlvl   ,zpd    ,z0m    ,z0h    ,ur     , & 
+                       mpe    ,iloc   ,jloc   ,                 & 
+                       moz    ,mozsgn ,fm     ,fh     ,fm2,fh2, & 
+                       cm     ,ch     ,fv     ,ch2     )          
+       endif
+     
+       if(opt_sfc == 2) then
+          call sfcdif2(parameters,iter   ,z0m    ,tah    ,thair  ,ur     , & 
+                       zlvl   ,iloc   ,jloc   ,         & 
+                       cm     ,ch     ,moz    ,wstar  ,         & 
+                       fv     )                                   
+          
+          ch = ch / ur
+          cm = cm / ur
+       endif
+
+       ramc = max(1.,1./(cm*ur))
+       rahc = max(1.,1./(ch*ur))
+       rawc = rahc
+       
+       call ragrb(parameters,iter   ,vaie   ,rhoair ,hg     ,tah    , & 
+                  zpd    ,z0mg   ,z0hg   ,hcan   ,uc     , & 
+                  z0h    ,fv     ,cwp    ,vegtyp ,mpe    , & 
+                  tv     ,mozg   ,fhg    ,iloc   ,jloc   , & 
+                  ramg   ,rahg   ,rawg   ,rb     )           
+
+
+       t = tdc(tv)
+       call esat(t, esatw, esati, dsatw, dsati)
+       if (t .gt. 0.) then
+          estv  = esatw
+          destv = dsatw
+       else
+          estv  = esati
+          destv = dsati
+       end if
+
+        
+     if(iter == 1) then
+        if (opt_crs == 1) then  
+         call stomata (parameters,vegtyp,mpe   ,parsun ,foln  ,iloc  , jloc , & 
+                       tv    ,estv  ,eah    ,sfctmp,sfcprs, & 
+                       o2air ,co2air,igs    ,btran ,rb    , & 
+                       rssun ,psnsun)                         
+
+         call stomata (parameters,vegtyp,mpe   ,parsha ,foln  ,iloc  , jloc , & 
+                       tv    ,estv  ,eah    ,sfctmp,sfcprs, & 
+                       o2air ,co2air,igs    ,btran ,rb    , & 
+                       rssha ,psnsha)                         
+        end if
+
+        if (opt_crs == 2) then  
+         call  canres (parameters,parsun,tv    ,btran ,eah    ,sfcprs, & 
+                       rssun ,psnsun,iloc  ,jloc   )          
+
+         call  canres (parameters,parsha,tv    ,btran ,eah    ,sfcprs, & 
+                       rssha ,psnsha,iloc  ,jloc   )          
+        end if
+     end if
+
+        cah  = 1./rahc
+        cvh  = 2.*vaie/rb
+        cgh  = 1./rahg
+        cond = cah + cvh + cgh
+        ata  = (sfctmp*cah + tg*cgh) / cond
+        bta  = cvh/cond
+        csh  = (1.-bta)*rhoair*cpair*cvh
+
+        caw  = 1./rawc
+        cew  = fwet*vaie/rb
+        ctw  = (1.-fwet)*(laisune/(rb+rssun) + laishae/(rb+rssha))
+        cgw  = 1./(rawg+rsurf)
+        cond = caw + cew + ctw + cgw
+        aea  = (eair*caw + estg*cgw) / cond
+        bea  = (cew+ctw)/cond
+        cev  = (1.-bea)*cew*rhoair*cpair/gammav   
+        ctr  = (1.-bea)*ctw*rhoair*cpair/gammav
+
+        tah = ata + bta*tv               
+        eah = aea + bea*estv             
+
+        irc = fveg*(air + cir*tv**4)
+        shc = fveg*rhoair*cpair*cvh * (  tv-tah)
+        evc = fveg*rhoair*cpair*cew * (estv-eah) / gammav 
+        tr  = fveg*rhoair*cpair*ctw * (estv-eah) / gammav
+	if (tv > tfrz) then
+          evc = min(canliq*latheav/dt,evc)    
+	else
+          evc = min(canice*latheav/dt,evc)
+	end if
+
+        b   = sav-irc-shc-evc-tr+pahv                          
+        a   = fveg*(4.*cir*tv**3 + csh + (cev+ctr)*destv) 
+        dtv = b/a
+        irc = irc + fveg*4.*cir*tv**3*dtv
+        shc = shc + fveg*csh*dtv
+        evc = evc + fveg*cev*destv*dtv
+        tr  = tr  + fveg*ctr*destv*dtv                               
+        tv  = tv + dtv
+        h  = rhoair*cpair*(tah - sfctmp) /rahc        
+        hg = rhoair*cpair*(tg  - tah)   /rahg
+#ifndef AMIPW_PHYSICS
+        qsfc = (0.622*eah)/(sfcprs-0.378*eah)
+#endif
+
+        if (liter == 1) then
+           exit loop1 
+        endif
+        if (iter >= 5 .and. abs(dtv) <= 0.01 .and. liter == 0) then
+           liter = 1
+        endif
+
+     end do loop1 
+
+        air = - emg*(1.-emv)*lwdn - emg*emv*sb*tv**4
+        cir = emg*sb
+        csh = rhoair*cpair/rahg
+        cev = rhoair*cpair / (gammag*(rawg+rsurf))  
+        cgh = 2.*df(isnow+1)/dzsnso(isnow+1)
+
+     loop2: do iter = 1, niterg
+
+        t = tdc(tg)
+        call esat(t, esatw, esati, dsatw, dsati)
+        if (t .gt. 0.) then
+            estg  = esatw
+            destg = dsatw
+        else
+            estg  = esati
+            destg = dsati
+        end if
+
+        irg = cir*tg**4 + air
+        shg = csh * (tg         - tah         )
+        evg = cev * (estg*rhsur - eah         )
+        gh  = cgh * (tg         - stc(isnow+1))
+
+        b = sag-irg-shg-evg-gh+pahg
+        a = 4.*cir*tg**3+csh+cev*destg+cgh
+        dtg = b/a
+
+        irg = irg + 4.*cir*tg**3*dtg
+        shg = shg + csh*dtg
+        evg = evg + cev*destg*dtg
+        gh  = gh  + cgh*dtg
+        tg  = tg  + dtg
+
+     end do loop2
+     
+     if(opt_stc == 1 .or. opt_stc == 3) then
+     if (snowh > 0.05 .and. tg > tfrz) then
+        if(opt_stc == 1) tg  = tfrz
+        if(opt_stc == 3) tg  = (1.-fsno)*tg + fsno*tfrz   
+        irg = cir*tg**4 - emg*(1.-emv)*lwdn - emg*emv*sb*tv**4
+        shg = csh * (tg         - tah)
+        evg = cev * (estg*rhsur - eah)
+        gh  = sag+pahg - (irg+shg+evg)
+     end if
+     end if
+
+     tauxv = -rhoair*cm*ur*uu
+     tauyv = -rhoair*cm*ur*vv
+
+   if (opt_sfc == 1 .or. opt_sfc == 2) then
+
+      cah2 = fv*vkc/log((2.+z0h)/z0h)
+      cah2 = fv*vkc/(log((2.+z0h)/z0h)-fh2)
+      cq2v = cah2
+      if (cah2 .lt. 1.e-5 ) then
+         t2mv = tah
+
+         q2v  = qsfc
+      else
+         t2mv = tah - (shg+shc/fveg)/(rhoair*cpair) * 1./cah2
+
+         q2v = qsfc - ((evc+tr)/fveg+evg)/(latheav*rhoair) * 1./cq2v
+      endif
+   endif
+
+     ch = cah
+     chleaf = cvh
+     chuc = 1./rahg
+
+  end subroutine vege_flux
+
+
+
+  subroutine bare_flux (parameters,nsnow   ,nsoil   ,isnow   ,dt      ,sag     , & 
+                        lwdn    ,ur      ,uu      ,vv      ,sfctmp  , & 
+                        thair   ,qair    ,eair    ,rhoair  ,snowh   , & 
+                        dzsnso  ,zlvl    ,zpd     ,z0m     ,fsno    , & 
+                        emg     ,stc     ,df      ,rsurf   ,lathea  , & 
+                        gamma   ,rhsur   ,iloc    ,jloc    ,q2      ,pahb  , & 
+                        tgb     ,cm      ,ch      ,          & 
+                        tauxb   ,tauyb   ,irb     ,shb     ,evb     , & 
+                        ghb     ,t2mb    ,dx      ,dz8w    ,ivgtyp  , & 
+                        qc      ,qsfc    ,psfc    ,                   & 
+                        sfcprs  ,q2b     ,ehb2    )                     
+
+
+  implicit none
+
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer                        , intent(in) :: iloc   
+  integer                        , intent(in) :: jloc   
+  integer,                         intent(in) :: nsnow  
+  integer,                         intent(in) :: nsoil  
+  integer,                         intent(in) :: isnow  
+  real(r8)  ,                            intent(in) :: dt     
+  real(r8)  ,                            intent(in) :: sag    
+  real(r8)  ,                            intent(in) :: lwdn   
+  real(r8)  ,                            intent(in) :: ur     
+  real(r8)  ,                            intent(in) :: uu     
+  real(r8)  ,                            intent(in) :: vv     
+  real(r8)  ,                            intent(in) :: sfctmp 
+  real(r8)  ,                            intent(in) :: thair  
+  real(r8)  ,                            intent(in) :: qair   
+  real(r8)  ,                            intent(in) :: eair   
+  real(r8)  ,                            intent(in) :: rhoair 
+  real(r8)  ,                            intent(in) :: snowh  
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: dzsnso 
+  real(r8)  ,                            intent(in) :: zlvl   
+  real(r8)  ,                            intent(in) :: zpd    
+  real(r8)  ,                            intent(in) :: z0m    
+  real(r8)  ,                            intent(in) :: emg    
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: stc    
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: df     
+  real(r8)  ,                            intent(in) :: rsurf  
+  real(r8)  ,                            intent(in) :: lathea 
+  real(r8)  ,                            intent(in) :: gamma  
+  real(r8)  ,                            intent(in) :: rhsur  
+  real(r8)  ,                            intent(in) :: fsno     
+
+
+  integer                        , intent(in) :: ivgtyp
+  real(r8)                    , intent(in) :: qc     
+  real(r8)                    , intent(inout) :: qsfc   
+  real(r8)                    , intent(in) :: psfc   
+  real(r8)                    , intent(in) :: sfcprs 
+  real(r8)                    , intent(in) :: dx     
+  real(r8)                    , intent(in) :: q2     
+  real(r8)                    , intent(in) :: dz8w   
+
+  real(r8)  , intent(in)   :: pahb  
+
+
+  real(r8)  ,                         intent(inout) :: tgb    
+  real(r8)  ,                         intent(inout) :: cm     
+  real(r8)  ,                         intent(inout) :: ch     
+
+
+
+
+  real(r8)  ,                           intent(out) :: tauxb  
+  real(r8)  ,                           intent(out) :: tauyb  
+  real(r8)  ,                           intent(out) :: irb    
+  real(r8)  ,                           intent(out) :: shb    
+  real(r8)  ,                           intent(out) :: evb    
+  real(r8)  ,                           intent(out) :: ghb    
+  real(r8)  ,                           intent(out) :: t2mb   
+
+  real(r8)  ,                           intent(out) :: q2b    
+  real(r8)            :: ehb    
+  real(r8)            :: u10b    
+  real(r8)            :: v10b    
+  real(r8)            :: wspd
+  real(r8)            :: taux       
+  real(r8)            :: tauy       
+  real(r8)            :: fira       
+  real(r8)            :: fsh        
+  real(r8)            :: fgev       
+  real(r8)            :: ssoil      
+  real(r8)            :: fire       
+  real(r8)            :: trad       
+  real(r8)            :: tah        
+  real(r8)            :: cw         
+  real(r8)            :: fv         
+  real(r8)            :: wstar      
+  real(r8)            :: z0h        
+  real(r8)            :: rb         
+  real(r8)            :: ramb       
+  real(r8)            :: rahb       
+  real(r8)            :: rawb       
+  real(r8)            :: mol        
+  real(r8)            :: dtg        
+  real(r8)            :: cir        
+  real(r8)            :: csh        
+  real(r8)            :: cev        
+  real(r8)            :: cgh        
+  real(r8)            :: rahb2      
+  real(r8)            :: rawb2      
+  real(r8)  ,intent(out) :: ehb2       
+  real(r8)            :: ch2b       
+  real(r8)            :: cq2b       
+  real(r8)            :: thvair     
+  real(r8)            :: thgh       
+  real(r8)            :: emb        
+  real(r8)            :: qfx        
+  real(r8)            :: estg2      
+  integer :: vegtyp     
+  real(r8)            :: e1
+  real(r8)            :: estg       
+  real(r8)            :: destg      
+  real(r8)            :: esatw      
+  real(r8)            :: esati      
+  real(r8)            :: dsatw      
+  real(r8)            :: dsati      
+  real(r8)            :: a          
+  real(r8)            :: b          
+  real(r8)            :: h          
+  real(r8)            :: moz        
+  real(r8)            :: mozold     
+  real(r8)            :: fm         
+  real(r8)            :: fh         
+  integer :: mozsgn  
+  real(r8)            :: fm2          
+  real(r8)            :: fh2          
+  real(r8)            :: ch2          
+  integer :: iter    
+  integer :: niterb  
+  real(r8)    :: mpe     
+
+
+  data niterb /5/
+  save niterb
+  real(r8)            :: t, tdc     
+  tdc(t)   = min( 50., max(-50.,(t-tfrz)) )
+
+        mpe = 1e-6
+        dtg = 0.
+        moz    = 0.
+        mozsgn = 0
+        mozold = 0.
+        h      = 0.
+        qfx    = 0.
+        fv     = 0.1
+
+        cir = emg*sb
+        cgh = 2.*df(isnow+1)/dzsnso(isnow+1)
+
+
+      loop3: do iter = 1, niterb  
+
+        if(iter == 1) then
+            z0h = z0m 
+        else
+            z0h = z0m 
+        end if
+
+        if(opt_sfc == 1) then
+          call sfcdif1(parameters,iter   ,sfctmp ,rhoair ,h      ,qair   , & 
+                       zlvl   ,zpd    ,z0m    ,z0h    ,ur     , & 
+                       mpe    ,iloc   ,jloc   ,                 & 
+                       moz    ,mozsgn ,fm     ,fh     ,fm2,fh2, & 
+                       cm     ,ch     ,fv     ,ch2     )          
+        endif
+
+        if(opt_sfc == 2) then
+          call sfcdif2(parameters,iter   ,z0m    ,tgb    ,thair  ,ur     , & 
+                       zlvl   ,iloc   ,jloc   ,         & 
+                       cm     ,ch     ,moz    ,wstar  ,         & 
+                       fv     )                                   
+          
+          
+          ch = ch / ur
+          cm = cm / ur
+          if(snowh > 0.) then
+             cm = min(0.01,cm)   
+             ch = min(0.01,ch)   
+          end if
+
+        endif
+
+        ramb = max(1.,1./(cm*ur))
+        rahb = max(1.,1./(ch*ur))
+        rawb = rahb
+        emb = 1./ramb
+        ehb = 1./rahb
+
+        t = tdc(tgb)
+        call esat(t, esatw, esati, dsatw, dsati)
+        if (t .gt. 0.) then
+            estg  = esatw
+            destg = dsatw
+        else
+            estg  = esati
+            destg = dsati
+        end if
+
+        csh = rhoair*cpair/rahb
+        cev = rhoair*cpair/gamma/(rsurf+rawb)
+        irb   = cir * tgb**4 - emg*lwdn
+        shb   = csh * (tgb        - sfctmp      )
+        evb   = cev * (estg*rhsur - eair        )
+        ghb   = cgh * (tgb        - stc(isnow+1))
+
+        b     = sag-irb-shb-evb-ghb+pahb
+        a     = 4.*cir*tgb**3 + csh + cev*destg + cgh
+        dtg   = b/a
+        irb = irb + 4.*cir*tgb**3*dtg
+        shb = shb + csh*dtg
+        evb = evb + cev*destg*dtg
+        ghb = ghb + cgh*dtg
+        tgb = tgb + dtg
+        h = csh * (tgb - sfctmp)
+        t = tdc(tgb)
+        call esat(t, esatw, esati, dsatw, dsati)
+        if (t .gt. 0.) then
+            estg  = esatw
+        else
+            estg  = esati
+        end if
+#ifndef AMIPW_PHYSICS
+        qsfc = 0.622*(estg*rhsur)/(psfc-0.378*(estg*rhsur))
+#endif
+
+        qfx = (qsfc-qair)*cev*gamma/cpair
+
+     end do loop3 
+
+
+     if(opt_stc == 1 .or. opt_stc == 3) then
+     if (snowh > 0.05 .and. tgb > tfrz) then
+          if(opt_stc == 1) tgb = tfrz
+          if(opt_stc == 3) tgb  = (1.-fsno)*tgb + fsno*tfrz  
+          irb = cir * tgb**4 - emg*lwdn
+          shb = csh * (tgb        - sfctmp)
+          evb = cev * (estg*rhsur - eair )          
+          ghb = sag+pahb - (irb+shb+evb)
+     end if
+     end if
+
+         
+     tauxb = -rhoair*cm*ur*uu
+     tauyb = -rhoair*cm*ur*vv
+
+
+     if(opt_sfc == 1 .or. opt_sfc ==2) then
+       ehb2  = fv*vkc/log((2.+z0h)/z0h)
+       ehb2  = fv*vkc/(log((2.+z0h)/z0h)-fh2)
+       cq2b  = ehb2
+       if (ehb2.lt.1.e-5 ) then
+         t2mb  = tgb
+         q2b   = qsfc
+       else
+         t2mb  = tgb - shb/(rhoair*cpair) * 1./ehb2
+         q2b   = qsfc - evb/(lathea*rhoair)*(1./cq2b + rsurf)
+       endif
+       if (parameters%urban_flag) q2b = qsfc
+     end if
+
+
+     ch = ehb
+
+  end subroutine bare_flux
+
+
+
+  subroutine ragrb(parameters,iter   ,vai    ,rhoair ,hg     ,tah    , & 
+                   zpd    ,z0mg   ,z0hg   ,hcan   ,uc     , & 
+                   z0h    ,fv     ,cwp    ,vegtyp ,mpe    , & 
+                   tv     ,mozg   ,fhg    ,iloc   ,jloc   , & 
+                   ramg   ,rahg   ,rawg   ,rb     )           
+
+  implicit none
+  type (noahmp_parameters), intent(in) :: parameters
+  integer,              intent(in) :: iloc   
+  integer,              intent(in) :: jloc   
+  integer,              intent(in) :: iter   
+  integer,              intent(in) :: vegtyp 
+  real(r8)  ,                 intent(in) :: vai    
+  real(r8)  ,                 intent(in) :: rhoair 
+  real(r8)  ,                 intent(in) :: hg     
+  real(r8)  ,                 intent(in) :: tv     
+  real(r8)  ,                 intent(in) :: tah    
+  real(r8)  ,                 intent(in) :: zpd    
+  real(r8)  ,                 intent(in) :: z0mg   
+  real(r8)  ,                 intent(in) :: hcan   
+  real(r8)  ,                 intent(in) :: uc     
+  real(r8)  ,                 intent(in) :: z0h    
+  real(r8)  ,                 intent(in) :: z0hg   
+  real(r8)  ,                 intent(in) :: fv     
+  real(r8)  ,                 intent(in) :: cwp    
+  real(r8)  ,                 intent(in) :: mpe    
+  real(r8)  ,              intent(inout) :: mozg   
+  real(r8)  ,              intent(inout) :: fhg    
+  real(r8)                      :: ramg   
+  real(r8)                      :: rahg   
+  real(r8)                      :: rawg   
+  real(r8)                      :: rb     
+  real(r8)            :: kh           
+  real(r8)            :: tmp1         
+  real(r8)            :: tmp2         
+  real(r8)            :: tmprah2      
+  real(r8)            :: tmprb        
+  real(r8)            :: molg,fhgnew,cwpc
+
+
+       mozg = 0.
+       molg = 0.
+
+       if(iter > 1) then
+        tmp1 = vkc * (grav/tah) * hg/(rhoair*cpair)
+        if (abs(tmp1) .le. mpe) tmp1 = mpe
+        molg = -1. * fv**3 / tmp1
+        mozg = min( (zpd-z0mg)/molg, 1.)
+       end if
+
+       if (mozg < 0.) then
+          fhgnew  = (1. - 15.*mozg)**(-0.25)
+       else
+          fhgnew  = 1.+ 4.7*mozg
+       endif
+
+       if (iter == 1) then
+          fhg = fhgnew
+       else
+          fhg = 0.5 * (fhg+fhgnew)
+       endif
+
+       cwpc = (cwp * vai * hcan * fhg)**0.5
+
+       tmp1 = exp( -cwpc*z0hg/hcan )
+       tmp2 = exp( -cwpc*(z0h+zpd)/hcan )
+       tmprah2 = hcan*exp(cwpc) / cwpc * (tmp1-tmp2)
+
+       kh  = max ( vkc*fv*(hcan-zpd), mpe )
+       ramg = 0.
+       rahg = tmprah2 / kh
+       rawg = rahg
+
+       tmprb  = cwpc*50. / (1. - exp(-cwpc/2.))
+       rb     = tmprb * sqrt(parameters%dleaf/uc)
+
+
+  end subroutine ragrb
+
+
+
+  subroutine sfcdif1(parameters,iter   ,sfctmp ,rhoair ,h      ,qair   , & 
+       &             zlvl   ,zpd    ,z0m    ,z0h    ,ur     , & 
+       &             mpe    ,iloc   ,jloc   ,                 & 
+       &             moz    ,mozsgn ,fm     ,fh     ,fm2,fh2, & 
+       &             cm     ,ch     ,fv     ,ch2     )
+
+    implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+    integer,              intent(in) :: iloc   
+    integer,              intent(in) :: jloc   
+    integer,              intent(in) :: iter   
+    real(r8)  ,                 intent(in) :: sfctmp 
+    real(r8)  ,                 intent(in) :: rhoair 
+    real(r8)  ,                 intent(in) :: h      
+    real(r8)  ,                 intent(in) :: qair   
+    real(r8)  ,                 intent(in) :: zlvl   
+    real(r8)  ,                 intent(in) :: zpd    
+    real(r8)  ,                 intent(in) :: z0h    
+    real(r8)  ,                 intent(in) :: z0m    
+    real(r8)  ,                 intent(in) :: ur     
+    real(r8)  ,                 intent(in) :: mpe    
+    integer,           intent(inout) :: mozsgn 
+    real(r8)  ,              intent(inout) :: moz    
+    real(r8)  ,              intent(inout) :: fm     
+    real(r8)  ,              intent(inout) :: fh     
+    real(r8)  ,              intent(inout) :: fm2    
+    real(r8)  ,              intent(inout) :: fh2    
+    real(r8)  ,                intent(out) :: cm     
+    real(r8)  ,                intent(out) :: ch     
+    real(r8)  ,                intent(out) :: fv     
+    real(r8)  ,                intent(out) :: ch2    
+    real(r8)                       :: mol                      
+    real(r8)                       :: tmpcm                    
+    real(r8)                       :: tmpch                    
+    real(r8)                       :: fmnew                    
+    real(r8)                       :: fhnew                    
+    real(r8)                       :: mozold                   
+    real(r8)                       :: tmp1,tmp2,tmp3,tmp4,tmp5 
+    real(r8)                       :: tvir                     
+    real(r8)                       :: moz2                     
+    real(r8)                       :: tmpcm2                   
+    real(r8)                       :: tmpch2                   
+    real(r8)                       :: fm2new                   
+    real(r8)                       :: fh2new                   
+    real(r8)                       :: tmp12,tmp22,tmp32        
+
+    real(r8)                       :: cmfm, chfh, cm2fm2, ch2fh2
+
+    mozold = moz
+    if(zlvl <= zpd) then
+       write(*,*) 'critical problem: zlvl <= zpd; model stops'
+       print*, (&
+"stop in noah-mp")
+    endif
+
+    tmpcm = log((zlvl-zpd) / z0m)
+    tmpch = log((zlvl-zpd) / z0h)
+    tmpcm2 = log((2.0 + z0m) / z0m)
+    tmpch2 = log((2.0 + z0h) / z0h)
+
+    if(iter == 1) then
+       fv   = 0.0
+       moz  = 0.0
+       mol  = 0.0
+       moz2 = 0.0
+    else
+       tvir = (1. + 0.61*qair) * sfctmp
+       tmp1 = vkc * (grav/tvir) * h/(rhoair*cpair)
+       if (abs(tmp1) .le. mpe) tmp1 = mpe
+       mol  = -1. * fv**3 / tmp1
+       moz  = min( (zlvl-zpd)/mol, 1.)
+       moz2  = min( (2.0 + z0h)/mol, 1.)
+    endif
+
+    if (mozold*moz .lt. 0.) mozsgn = mozsgn+1
+    if (mozsgn .ge. 2) then
+       moz = 0.
+       fm = 0.
+       fh = 0.
+       moz2 = 0.
+       fm2 = 0.
+       fh2 = 0.
+    endif
+
+    if (moz .lt. 0.) then
+       tmp1 = (1. - 16.*moz)**0.25
+       tmp2 = log((1.+tmp1*tmp1)/2.)
+       tmp3 = log((1.+tmp1)/2.)
+       fmnew = 2.*tmp3 + tmp2 - 2.*atan(tmp1) + 1.5707963
+       fhnew = 2*tmp2
+
+
+       tmp12 = (1. - 16.*moz2)**0.25
+       tmp22 = log((1.+tmp12*tmp12)/2.)
+       tmp32 = log((1.+tmp12)/2.)
+       fm2new = 2.*tmp32 + tmp22 - 2.*atan(tmp12) + 1.5707963
+       fh2new = 2*tmp22
+    else
+       fmnew = -5.*moz
+       fhnew = fmnew
+       fm2new = -5.*moz2
+       fh2new = fm2new
+    endif
+
+
+    if (iter == 1) then
+       fm = fmnew
+       fh = fhnew
+       fm2 = fm2new
+       fh2 = fh2new
+    else
+       fm = 0.5 * (fm+fmnew)
+       fh = 0.5 * (fh+fhnew)
+       fm2 = 0.5 * (fm2+fm2new)
+       fh2 = 0.5 * (fh2+fh2new)
+    endif
+
+    fh = min(fh,0.9*tmpch)
+    fm = min(fm,0.9*tmpcm)
+    fh2 = min(fh2,0.9*tmpch2)
+    fm2 = min(fm2,0.9*tmpcm2)
+    cmfm = tmpcm-fm
+    chfh = tmpch-fh
+    cm2fm2 = tmpcm2-fm2
+    ch2fh2 = tmpch2-fh2
+    if(abs(cmfm) <= mpe) cmfm = mpe
+    if(abs(chfh) <= mpe) chfh = mpe
+    if(abs(cm2fm2) <= mpe) cm2fm2 = mpe
+    if(abs(ch2fh2) <= mpe) ch2fh2 = mpe
+    cm  = vkc*vkc/(cmfm*cmfm)
+    ch  = vkc*vkc/(cmfm*chfh)
+    ch2  = vkc*vkc/(cm2fm2*ch2fh2)
+    fv = ur * sqrt(cm)
+    ch2  = vkc*fv/ch2fh2
+
+  end subroutine sfcdif1
+
+
+
+  subroutine sfcdif2(parameters,iter   ,z0     ,thz0   ,thlm   ,sfcspd , & 
+                     zlm    ,iloc   ,jloc   ,         & 
+                     akms   ,akhs   ,rlmo   ,wstar2 ,         & 
+                     ustar  ) 
+
+    implicit none
+    type (noahmp_parameters), intent(in) :: parameters
+    integer, intent(in) :: iloc
+    integer, intent(in) :: jloc
+    integer, intent(in) :: iter
+    real(r8)  ,    intent(in) :: zlm, z0, thz0, thlm, sfcspd
+    real(r8)  , intent(inout) :: akms
+    real(r8)  , intent(inout) :: akhs
+    real(r8)  , intent(inout) :: rlmo
+    real(r8)  , intent(inout) :: wstar2
+    real(r8)  ,   intent(out) :: ustar
+    real(r8)      zz, pslmu, pslms, pslhu, pslhs
+    real(r8)      xx, pspmu, yy, pspms, psphu, psphs
+    real(r8)      zilfc, zu, zt, rdz, cxch
+    real(r8)      dthv, du2, btgh, zslu, zslt, rlogu, rlogt
+    real(r8)      zetalt, zetalu, zetau, zetat, xlu4, xlt4, xu4, xt4
+    real(r8)      xlu, xlt, xu, xt, psmz, simm, pshz, simh, ustark, rlmn,  &
+         &         rlma
+    integer  ilech, itr
+    integer, parameter :: itrmx  = 5
+    real(r8)  ,    parameter :: wwst   = 1.2
+    real(r8)  ,    parameter :: wwst2  = wwst * wwst
+    real(r8)  ,    parameter :: vkrm   = 0.40
+    real(r8)  ,    parameter :: excm   = 0.001
+    real(r8)  ,    parameter :: beta   = 1.0 / 270.0
+    real(r8)  ,    parameter :: btg    = beta * grav
+    real(r8)  ,    parameter :: elfc   = vkrm * btg
+    real(r8)  ,    parameter :: wold   = 0.15
+    real(r8)  ,    parameter :: wnew   = 1.0 - wold
+    real(r8)  ,    parameter :: pihf   = 3.14159265 / 2.
+    real(r8)  ,    parameter :: epsu2  = 1.e-4
+    real(r8)  ,    parameter :: epsust = 0.07
+    real(r8)  ,    parameter :: epsit  = 1.e-4
+    real(r8)  ,    parameter :: epsa   = 1.e-8
+    real(r8)  ,    parameter :: ztmin  = -5.0
+    real(r8)  ,    parameter :: ztmax  = 1.0
+    real(r8)  ,    parameter :: hpbl   = 1000.0
+    real(r8)  ,    parameter :: sqvisc = 258.2
+    real(r8)  ,    parameter :: ric    = 0.183
+    real(r8)  ,    parameter :: rric   = 1.0 / ric
+    real(r8)  ,    parameter :: fhneu  = 0.8
+    real(r8)  ,    parameter :: rfc    = 0.191
+    real(r8)  ,    parameter :: rfac   = ric / ( fhneu * rfc * rfc )
+
+    pslmu (zz)= -0.96* log (1.0-4.5* zz)
+    pslms (zz)= zz * rric -2.076* (1. -1./ (zz +1.))
+    pslhu (zz)= -0.96* log (1.0-4.5* zz)
+    pslhs (zz)= zz * rfac -2.076* (1. -1./ (zz +1.))
+    pspmu (xx)= -2.* log ( (xx +1.)*0.5) - log ( (xx * xx +1.)*0.5)   &
+         &        +2.* atan (xx)                                            &
+         &- pihf
+    pspms (yy)= 5.* yy
+    psphu (xx)= -2.* log ( (xx * xx +1.)*0.5)
+    psphs (yy)= 5.* yy
+    ilech = 0
+    zilfc = - parameters%czil * vkrm * sqvisc
+    zu = z0
+    rdz = 1./ zlm
+    cxch = excm * rdz
+    dthv = thlm - thz0
+    du2 = max (sfcspd * sfcspd,epsu2)
+    btgh = btg * hpbl
+
+    if(iter == 1) then
+        if (btgh * akhs * dthv .ne. 0.0) then
+           wstar2 = wwst2* abs (btgh * akhs * dthv)** (2./3.)
+        else
+           wstar2 = 0.0
+        end if
+        ustar = max (sqrt (akms * sqrt (du2+ wstar2)),epsust)
+        rlmo = elfc * akhs * dthv / ustar **3
+    end if
+ 
+
+    zt = max(1.e-6,exp (zilfc * sqrt (ustar * z0))* z0)
+    zslu = zlm + zu
+    zslt = zlm + zt
+    rlogu = log (zslu / zu)
+    rlogt = log (zslt / zt)
+    zetalt = max (zslt * rlmo,ztmin)
+    rlmo = zetalt / zslt
+    zetalu = zslu * rlmo
+    zetau = zu * rlmo
+    zetat = zt * rlmo
+
+    if (ilech .eq. 0) then
+       if (rlmo .lt. 0.)then
+          xlu4 = 1. -16.* zetalu
+          xlt4 = 1. -16.* zetalt
+          xu4  = 1. -16.* zetau
+          xt4  = 1. -16.* zetat
+          xlu  = sqrt (sqrt (xlu4))
+          xlt  = sqrt (sqrt (xlt4))
+          xu   = sqrt (sqrt (xu4))
+
+          xt = sqrt (sqrt (xt4))
+          psmz = pspmu (xu)
+          simm = pspmu (xlu) - psmz + rlogu
+          pshz = psphu (xt)
+          simh = psphu (xlt) - pshz + rlogt
+       else
+          zetalu = min (zetalu,ztmax)
+          zetalt = min (zetalt,ztmax)
+          zetau  = min (zetau,ztmax/(zslu/zu))   
+          zetat  = min (zetat,ztmax/(zslt/zt))   
+          psmz = pspms (zetau)
+          simm = pspms (zetalu) - psmz + rlogu
+          pshz = psphs (zetat)
+          simh = psphs (zetalt) - pshz + rlogt
+       end if
+    else
+       if (rlmo .lt. 0.)then
+          psmz = pslmu (zetau)
+          simm = pslmu (zetalu) - psmz + rlogu
+          pshz = pslhu (zetat)
+          simh = pslhu (zetalt) - pshz + rlogt
+       else
+          zetalu = min (zetalu,ztmax)
+          zetalt = min (zetalt,ztmax)
+          psmz = pslms (zetau)
+          simm = pslms (zetalu) - psmz + rlogu
+          pshz = pslhs (zetat)
+          simh = pslhs (zetalt) - pshz + rlogt
+       end if
+
+       end if
+
+       ustar = max (sqrt (akms * sqrt (du2+ wstar2)),epsust)
+       zt = max(1.e-6,exp (zilfc * sqrt (ustar * z0))* z0)
+       zslt = zlm + zt
+
+       rlogt = log (zslt / zt)
+       ustark = ustar * vkrm
+       if(simm < 1.e-6) simm = 1.e-6        
+       akms = max (ustark / simm,cxch)
+
+       if(simh < 1.e-6) simh = 1.e-6        
+       akhs = max (ustark / simh,cxch)
+
+       if (btgh * akhs * dthv .ne. 0.0) then
+          wstar2 = wwst2* abs (btgh * akhs * dthv)** (2./3.)
+       else
+          wstar2 = 0.0
+       end if
+
+       rlmn = elfc * akhs * dthv / ustar **3
+       rlma = rlmo * wold+ rlmn * wnew
+       rlmo = rlma
+
+  end subroutine sfcdif2
+
+
+
+  subroutine esat(t, esw, esi, desw, desi)
+  implicit none
+
+  real(r8)  , intent(in)  :: t              
+  real(r8)  , intent(out) :: esw            
+  real(r8)  , intent(out) :: esi            
+  real(r8)  , intent(out) :: desw           
+  real(r8)  , intent(out) :: desi           
+  real(r8)            :: a0,a1,a2,a3,a4,a5,a6  
+  real(r8)            :: b0,b1,b2,b3,b4,b5,b6  
+  real(r8)            :: c0,c1,c2,c3,c4,c5,c6  
+  real(r8)            :: d0,d1,d2,d3,d4,d5,d6  
+
+  parameter (a0=6.107799961    , a1=4.436518521e-01,  &
+             a2=1.428945805e-02, a3=2.650648471e-04,  &
+             a4=3.031240396e-06, a5=2.034080948e-08,  &
+             a6=6.136820929e-11)
+
+  parameter (b0=6.109177956    , b1=5.034698970e-01,  &
+             b2=1.886013408e-02, b3=4.176223716e-04,  &
+             b4=5.824720280e-06, b5=4.838803174e-08,  &
+             b6=1.838826904e-10)
+
+  parameter (c0= 4.438099984e-01, c1=2.857002636e-02,  &
+             c2= 7.938054040e-04, c3=1.215215065e-05,  &
+             c4= 1.036561403e-07, c5=3.532421810e-10,  &
+             c6=-7.090244804e-13)
+
+  parameter (d0=5.030305237e-01, d1=3.773255020e-02,  &
+             d2=1.267995369e-03, d3=2.477563108e-05,  &
+             d4=3.005693132e-07, d5=2.158542548e-09,  &
+             d6=7.131097725e-12)
+
+  esw  = 100.*(a0+t*(a1+t*(a2+t*(a3+t*(a4+t*(a5+t*a6))))))
+  esi  = 100.*(b0+t*(b1+t*(b2+t*(b3+t*(b4+t*(b5+t*b6))))))
+  desw = 100.*(c0+t*(c1+t*(c2+t*(c3+t*(c4+t*(c5+t*c6))))))
+  desi = 100.*(d0+t*(d1+t*(d2+t*(d3+t*(d4+t*(d5+t*d6))))))
+
+  end subroutine esat
+
+
+
+  subroutine stomata (parameters,vegtyp  ,mpe     ,apar    ,foln    ,iloc    , jloc, & 
+                      tv      ,ei      ,ea      ,sfctmp  ,sfcprs  , & 
+                      o2      ,co2     ,igs     ,btran   ,rb      , & 
+                      rs      ,psn     )                              
+
+  implicit none
+
+
+  type (noahmp_parameters), intent(in) :: parameters
+      integer,intent(in)  :: iloc   
+      integer,intent(in)  :: jloc   
+      integer,intent(in)  :: vegtyp 
+      real(r8)  , intent(in)    :: igs    
+      real(r8)  , intent(in)    :: mpe    
+      real(r8)  , intent(in)    :: tv     
+      real(r8)  , intent(in)    :: ei     
+      real(r8)  , intent(in)    :: ea     
+      real(r8)  , intent(in)    :: apar   
+      real(r8)  , intent(in)    :: o2     
+      real(r8)  , intent(in)    :: co2    
+      real(r8)  , intent(in)    :: sfcprs 
+      real(r8)  , intent(in)    :: sfctmp 
+      real(r8)  , intent(in)    :: btran  
+      real(r8)  , intent(in)    :: foln   
+      real(r8)  , intent(in)    :: rb     
+      real(r8)  , intent(out)   :: rs     
+      real(r8)  , intent(out)   :: psn    
+      real(r8)                            :: rlb    
+      integer :: iter     
+      integer :: niter    
+
+      data niter /3/
+      save niter
+
+      real(r8)            :: ab          
+      real(r8)            :: bc          
+      real(r8)            :: f1          
+      real(r8)            :: f2          
+      real(r8)            :: tc          
+      real(r8)            :: cs          
+      real(r8)            :: kc          
+      real(r8)            :: ko          
+      real(r8)            :: a,b,c,q     
+      real(r8)            :: r1,r2       
+      real(r8)            :: fnf         
+      real(r8)            :: ppf         
+      real(r8)            :: wc          
+      real(r8)            :: wj          
+      real(r8)            :: we          
+      real(r8)            :: cp          
+      real(r8)            :: ci          
+      real(r8)            :: awc         
+      real(r8)            :: vcmx        
+      real(r8)            :: j           
+      real(r8)            :: cea         
+      real(r8)            :: cf          
+
+      f1(ab,bc) = ab**((bc-25.)/10.)
+      f2(ab) = 1. + exp((-2.2e05+710.*(ab+273.16))/(8.314*(ab+273.16)))
+      real(r8)            :: t
+
+         cf = sfcprs/(8.314*sfctmp)*1.e06
+         rs = 1./parameters%bp * cf
+         psn = 0.
+
+         if (apar .le. 0.) return
+
+         fnf = min( foln/max(mpe,parameters%folnmx), 1.0 )
+         tc  = tv-tfrz
+         ppf = 4.6*apar
+         j   = ppf*parameters%qe25
+         kc  = parameters%kc25 * f1(parameters%akc,tc)
+         ko  = parameters%ko25 * f1(parameters%ako,tc)
+         awc = kc * (1.+o2/ko)
+         cp  = 0.5*kc/ko*o2*0.21
+         vcmx = parameters%vcmx25 / f2(tc) * fnf * btran * f1(parameters%avcmx,tc)
+
+         ci = 0.7*co2*parameters%c3psn + 0.4*co2*(1.-parameters%c3psn)
+
+         rlb = rb/cf
+
+         cea = max(0.25*ei*parameters%c3psn+0.40*ei*(1.-parameters%c3psn), min(ea,ei) )
+
+       do iter = 1, niter
+            wj = max(ci-cp,0.)*j/(ci+2.*cp)*parameters%c3psn  + j*(1.-parameters%c3psn)
+            wc = max(ci-cp,0.)*vcmx/(ci+awc)*parameters%c3psn + vcmx*(1.-parameters%c3psn)
+            we = 0.5*vcmx*parameters%c3psn + 4000.*vcmx*ci/sfcprs*(1.-parameters%c3psn)
+            psn = min(wj,wc,we) * igs
+
+            cs = max( co2-1.37*rlb*sfcprs*psn, mpe )
+            a = parameters%mp*psn*sfcprs*cea / (cs*ei) + parameters%bp
+            b = ( parameters%mp*psn*sfcprs/cs + parameters%bp ) * rlb - 1.
+            c = -rlb
+            if (b .ge. 0.) then
+               q = -0.5*( b + sqrt(b*b-4.*a*c) )
+            else
+               q = -0.5*( b - sqrt(b*b-4.*a*c) )
+            end if
+            r1 = q/a
+            r2 = c/q
+            rs = max(r1,r2)
+            ci = max( cs-psn*sfcprs*1.65*rs, 0. )
+       end do 
+
+         rs = rs*cf
+
+  end subroutine stomata
+
+
+
+  subroutine canres (parameters,par   ,sfctmp,rcsoil ,eah   ,sfcprs , & 
+                     rc    ,psn   ,iloc   ,jloc  )           
+
+
+    implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+    integer,                  intent(in)  :: iloc   
+    integer,                  intent(in)  :: jloc   
+    real(r8)  ,                     intent(in)  :: par    
+    real(r8)  ,                     intent(in)  :: sfctmp 
+    real(r8)  ,                     intent(in)  :: sfcprs 
+    real(r8)  ,                     intent(in)  :: eah    
+    real(r8)  ,                     intent(in)  :: rcsoil 
+    real(r8)  ,                     intent(out) :: rc     
+    real(r8)  ,                     intent(out) :: psn    
+    real(r8)                           :: rcq
+    real(r8)                           :: rcs
+    real(r8)                           :: rct
+    real(r8)                           :: ff
+    real(r8)                           :: q2     
+    real(r8)                           :: q2sat  
+    real(r8)                           :: dqsdt2 
+
+    rc     = 0.0
+    rcs    = 0.0
+    rct    = 0.0
+    rcq    = 0.0
+
+    q2 = 0.622 *  eah  / (sfcprs - 0.378 * eah) 
+    q2 = q2 / (1.0 + q2)                        
+
+    call calhum(parameters,sfctmp, sfcprs, q2sat, dqsdt2)
+
+    ff  = 2.0 * par / parameters%rgl                
+    rcs = (ff + parameters%rsmin / parameters%rsmax) / (1.0+ ff)
+    rcs = max (rcs,0.0001)
+    rct = 1.0- 0.0016* ( (parameters%topt - sfctmp)**2.0)
+    rct = max (rct,0.0001)
+    rcq = 1.0/ (1.0+ parameters%hs * max(0.,q2sat-q2))
+    rcq = max (rcq,0.01)
+    rc  = parameters%rsmin / (rcs * rct * rcq * rcsoil)
+    psn = -999.99       
+
+  end subroutine canres
+
+
+
+subroutine calhum(parameters,sfctmp, sfcprs, q2sat, dqsdt2)
+
+   implicit none
+  type (noahmp_parameters), intent(in) :: parameters
+        real(r8)  , intent(in)       :: sfctmp, sfcprs
+        real(r8)  , intent(out)      :: q2sat, dqsdt2
+        real(r8)  , parameter        :: a2=17.67,a3=273.15,a4=29.65, elwv=2.501e6,         &
+                                  a23m4=a2*(a3-a4), e0=0.611, rv=461.0,             &
+                                  epsilon=0.622
+        real(r8)                    :: es, sfcprsx
+
+        es = e0 * exp ( elwv/rv*(1./a3 - 1./sfctmp) )
+        sfcprsx = sfcprs*1.e-3
+        q2sat = epsilon * es / (sfcprsx-es)
+        q2sat = q2sat * 1.e3
+        dqsdt2=(q2sat/(1+q2sat))*a23m4/(sfctmp-a4)**2
+        q2sat = q2sat / 1.e3
+
+end subroutine calhum
+
+subroutine tsnosoi (parameters,ice     ,nsoil   ,nsnow   ,isnow   ,ist     , & 
+                      tbot    ,zsnso   ,ssoil   ,df      ,hcpct   , & 
+                      sag     ,dt      ,snowh   ,dzsnso  , & 
+                      tg      ,iloc    ,jloc    ,                   & 
+                      stc     )                                       
+
+  implicit none
+  type (noahmp_parameters), intent(in) :: parameters
+    integer,                         intent(in)  :: iloc
+    integer,                         intent(in)  :: jloc
+    integer,                         intent(in)  :: ice    
+    integer,                         intent(in)  :: nsoil  
+    integer,                         intent(in)  :: nsnow  
+    integer,                         intent(in)  :: isnow  
+    integer,                         intent(in)  :: ist    
+    real(r8)  ,                            intent(in)  :: dt     
+    real(r8)  ,                            intent(in)  :: tbot   
+    real(r8)  ,                            intent(in)  :: ssoil  
+    real(r8)  ,                            intent(in)  :: sag    
+    real(r8)  ,                            intent(in)  :: snowh  
+    real(r8)  ,                            intent(in)  :: tg     
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(in)  :: zsnso  
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(in)  :: dzsnso 
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(in)  :: df     
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(in)  :: hcpct  
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: stc
+
+    integer                                      :: iz
+    real(r8)                                          :: zbotsno   
+    real(r8)  , dimension(-nsnow+1:nsoil)              :: ai, bi, ci, rhsts
+    real(r8)                                          :: eflxb 
+    real(r8)  , dimension(-nsnow+1:nsoil)              :: phi   
+    real(r8)  , dimension(-nsnow+1:nsoil) :: tbeg
+    real(r8)                             :: err_est 
+    real(r8)                             :: ssoil2  
+    real(r8)                             :: eflxb2  
+    character(len=256)              :: message
+
+
+    phi(isnow+1:nsoil) = 0.
+    zbotsno = parameters%zbot - snowh    
+
+    do iz = isnow+1, nsoil
+       tbeg(iz) = stc(iz)
+    enddo
+
+      call hrt   (parameters,nsnow     ,nsoil     ,isnow     ,zsnso     , &
+                  stc       ,tbot      ,zbotsno   ,dt        , &
+                  df        ,hcpct     ,ssoil     ,phi       , &
+                  ai        ,bi        ,ci        ,rhsts     , &
+                  eflxb     )
+
+      call hstep (parameters,nsnow     ,nsoil     ,isnow     ,dt        , &
+                  ai        ,bi        ,ci        ,rhsts     , &
+                  stc       ) 
+
+
+    if(opt_tbot == 1) then
+       eflxb2  = 0.
+    else if(opt_tbot == 2) then
+       eflxb2  = df(nsoil)*(tbot-stc(nsoil)) / &
+            (0.5*(zsnso(nsoil-1)+zsnso(nsoil)) - zbotsno)
+    end if
+    
+    return
+
+
+    err_est = 0.0
+    do iz = isnow+1, nsoil
+       err_est = err_est + (stc(iz)-tbeg(iz)) * dzsnso(iz) * hcpct(iz) / dt
+    enddo
+
+    if (opt_stc == 1 .or. opt_stc == 3) then   
+       err_est = err_est - (ssoil +eflxb)
+    else                     
+       ssoil2 = df(isnow+1)*(tg-stc(isnow+1))/(0.5*dzsnso(isnow+1))   
+       err_est = err_est - (ssoil2+eflxb2)
+    endif
+
+    if (abs(err_est) > 1.) then    
+       write(message,*) 'tsnosoi is losing(-)/gaining(+) false energy',err_est,' w/m2'
+       print*, (trim(message))
+       write(message,'(i6,1x,i6,1x,i3,f18.13,5f20.12)') &
+            iloc, jloc, ist,err_est,ssoil,snowh,tg,stc(isnow+1),eflxb
+       print*, (trim(message))
+       
+    end if
+
+  end subroutine tsnosoi
+
+
+
+  subroutine hrt (parameters,nsnow     ,nsoil     ,isnow     ,zsnso     , &
+                  stc       ,tbot      ,zbot      ,dt        , &
+                  df        ,hcpct     ,ssoil     ,phi       , &
+                  ai        ,bi        ,ci        ,rhsts     , &
+                  botflx    )
+
+    implicit none
+  type (noahmp_parameters), intent(in) :: parameters
+    integer,                         intent(in)  :: nsoil  
+    integer,                         intent(in)  :: nsnow  
+    integer,                         intent(in)  :: isnow  
+    real(r8)  ,                            intent(in)  :: tbot   
+    real(r8)  ,                            intent(in)  :: zbot                                                     
+    real(r8)  ,                            intent(in)  :: dt     
+    real(r8)  ,                            intent(in)  :: ssoil  
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(in)  :: zsnso  
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(in)  :: stc    
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(in)  :: df     
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(in)  :: hcpct  
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(in)  :: phi    
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(out) :: rhsts  
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(out) :: ai     
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(out) :: bi     
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(out) :: ci     
+    real(r8)  ,                            intent(out) :: botflx 
+    integer                                      :: k
+    real(r8)  , dimension(-nsnow+1:nsoil)              :: ddz
+    real(r8)  , dimension(-nsnow+1:nsoil)              :: dz
+    real(r8)  , dimension(-nsnow+1:nsoil)              :: denom
+    real(r8)  , dimension(-nsnow+1:nsoil)              :: dtsdz
+    real(r8)  , dimension(-nsnow+1:nsoil)              :: eflux
+    real(r8)                                          :: temp1
+
+
+    do k = isnow+1, nsoil
+        if (k == isnow+1) then
+           denom(k)  = - zsnso(k) * hcpct(k)
+           temp1     = - zsnso(k+1)
+           ddz(k)    = 2.0 / temp1
+           dtsdz(k)  = 2.0 * (stc(k) - stc(k+1)) / temp1
+           eflux(k)  = df(k) * dtsdz(k) - ssoil - phi(k)
+        else if (k < nsoil) then
+           denom(k)  = (zsnso(k-1) - zsnso(k)) * hcpct(k)
+           temp1     = zsnso(k-1) - zsnso(k+1)
+           ddz(k)    = 2.0 / temp1
+           dtsdz(k)  = 2.0 * (stc(k) - stc(k+1)) / temp1
+           eflux(k)  = (df(k)*dtsdz(k) - df(k-1)*dtsdz(k-1)) - phi(k)
+        else if (k == nsoil) then
+           denom(k)  = (zsnso(k-1) - zsnso(k)) * hcpct(k)
+           temp1     =  zsnso(k-1) - zsnso(k)
+           if(opt_tbot == 1) then
+               botflx     = 0. 
+           end if
+           if(opt_tbot == 2) then
+               dtsdz(k)  = (stc(k) - tbot) / ( 0.5*(zsnso(k-1)+zsnso(k)) - zbot)
+               botflx    = -df(k) * dtsdz(k)
+           end if
+           eflux(k)  = (-botflx - df(k-1)*dtsdz(k-1) ) - phi(k)
+        end if
+    end do
+
+    do k = isnow+1, nsoil
+        if (k == isnow+1) then
+           ai(k)    =   0.0
+           ci(k)    = - df(k)   * ddz(k) / denom(k)
+           if (opt_stc == 1 .or. opt_stc == 3 ) then
+              bi(k) = - ci(k)
+           end if                                        
+           if (opt_stc == 2) then
+              bi(k) = - ci(k) + df(k)/(0.5*zsnso(k)*zsnso(k)*hcpct(k))
+           end if
+        else if (k < nsoil) then
+           ai(k)    = - df(k-1) * ddz(k-1) / denom(k) 
+           ci(k)    = - df(k  ) * ddz(k  ) / denom(k) 
+           bi(k)    = - (ai(k) + ci (k))
+        else if (k == nsoil) then
+           ai(k)    = - df(k-1) * ddz(k-1) / denom(k) 
+           ci(k)    = 0.0
+           bi(k)    = - (ai(k) + ci(k))
+        end if
+           rhsts(k)  = eflux(k)/ (-denom(k))
+    end do
+
+  end subroutine hrt
+
+
+
+  subroutine hstep (parameters,nsnow     ,nsoil     ,isnow     ,dt        ,  &
+                    ai        ,bi        ,ci        ,rhsts     ,  &
+                    stc       )  
+
+   implicit none
+  type (noahmp_parameters), intent(in) :: parameters
+    integer,                         intent(in)    :: nsoil
+    integer,                         intent(in)    :: nsnow
+    integer,                         intent(in)    :: isnow
+    real(r8)  ,                            intent(in)    :: dt
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: rhsts
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: ai
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: bi
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: ci
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: stc
+    integer                                        :: k
+    real(r8)  , dimension(-nsnow+1:nsoil)                :: rhstsin
+    real(r8)  , dimension(-nsnow+1:nsoil)                :: ciin
+
+    do k = isnow+1,nsoil
+       rhsts(k) =   rhsts(k) * dt
+       ai(k)    =      ai(k) * dt
+       bi(k)    = 1. + bi(k) * dt
+       ci(k)    =      ci(k) * dt
+    end do
+
+    do k = isnow+1,nsoil
+       rhstsin(k) = rhsts(k)
+       ciin(k)    = ci(k)
+    end do
+
+    call rosr12 (ci,ai,bi,ciin,rhstsin,rhsts,isnow+1,nsoil,nsnow)
+    do k = isnow+1,nsoil
+       stc (k) = stc (k) + ci (k)
+    end do
+
+  end subroutine hstep
+
+
+
+  subroutine rosr12 (p,a,b,c,d,delta,ntop,nsoil,nsnow)
+
+    implicit none
+
+    integer, intent(in)   :: ntop           
+    integer, intent(in)   :: nsoil,nsnow
+    integer               :: k, kk
+    real(r8)  , dimension(-nsnow+1:nsoil),intent(in):: a, b, d
+    real(r8)  , dimension(-nsnow+1:nsoil),intent(inout):: c,p,delta
+
+
+    c (nsoil) = 0.0
+    p (ntop) = - c (ntop) / b (ntop)
+    delta (ntop) = d (ntop) / b (ntop)
+
+
+
+    do k = ntop+1,nsoil
+       p (k) = - c (k) * ( 1.0 / (b (k) + a (k) * p (k -1)) )
+       delta (k) = (d (k) - a (k)* delta (k -1))* (1.0/ (b (k) + a (k)&
+            * p (k -1)))
+    end do
+
+    p (nsoil) = delta (nsoil)
+    do k = ntop+1,nsoil
+       kk = nsoil - k + (ntop-1) + 1
+       p (kk) = p (kk) * p (kk +1) + delta (kk)
+    end do
+
+  end subroutine rosr12
+
+
+
+  subroutine phasechange (parameters,nsnow   ,nsoil   ,isnow   ,dt      ,fact    , & 
+                          dzsnso  ,hcpct   ,ist     ,iloc    ,jloc    , & 
+                          stc     ,snice   ,snliq   ,sneqv   ,snowh   , & 
+                          smc     ,sh2o    ,                            & 
+                          qmelt   ,imelt   ,ponding )                     
+
+  implicit none
+  type (noahmp_parameters), intent(in) :: parameters
+  integer, intent(in)                             :: iloc   
+  integer, intent(in)                             :: jloc   
+  integer, intent(in)                             :: nsnow  
+  integer, intent(in)                             :: nsoil  
+  integer, intent(in)                             :: isnow  
+  integer, intent(in)                             :: ist    
+  real(r8)  , intent(in)                                :: dt     
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in)     :: fact   
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in)     :: dzsnso 
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in)     :: hcpct  
+  integer, dimension(-nsnow+1:nsoil), intent(out) :: imelt  
+  real(r8)  ,                               intent(out) :: qmelt  
+  real(r8)  ,                               intent(out) :: ponding
+  real(r8)  , intent(inout) :: sneqv
+  real(r8)  , intent(inout) :: snowh
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(inout)  :: stc    
+  real(r8)  , dimension(       1:nsoil), intent(inout)  :: sh2o   
+  real(r8)  , dimension(       1:nsoil), intent(inout)  :: smc    
+  real(r8)  , dimension(-nsnow+1:0)    , intent(inout)  :: snice  
+  real(r8)  , dimension(-nsnow+1:0)    , intent(inout)  :: snliq  
+  integer                         :: j         
+  real(r8)  , dimension(-nsnow+1:nsoil) :: hm        
+  real(r8)  , dimension(-nsnow+1:nsoil) :: xm        
+  real(r8)  , dimension(-nsnow+1:nsoil) :: wmass0
+  real(r8)  , dimension(-nsnow+1:nsoil) :: wice0 
+  real(r8)  , dimension(-nsnow+1:nsoil) :: wliq0 
+  real(r8)  , dimension(-nsnow+1:nsoil) :: mice      
+  real(r8)  , dimension(-nsnow+1:nsoil) :: mliq      
+  real(r8)  , dimension(-nsnow+1:nsoil) :: supercool 
+  real(r8)                             :: heatr     
+  real(r8)                             :: temp1     
+  real(r8)                             :: propor
+  real(r8)                             :: smp       
+  real(r8)                             :: xmf       
+
+    qmelt   = 0.
+    ponding = 0.
+    xmf     = 0.
+
+    do j = -nsnow+1, nsoil
+         supercool(j) = 0.0
+    end do
+
+    do j = isnow+1,0       
+         mice(j) = snice(j)
+         mliq(j) = snliq(j)
+    end do
+
+    do j = 1, nsoil               
+         mliq(j) =  sh2o(j)            * dzsnso(j) * 1000.
+         mice(j) = (smc(j) - sh2o(j))  * dzsnso(j) * 1000.
+    end do
+
+    do j = isnow+1,nsoil       
+         imelt(j)    = 0
+         hm(j)       = 0.
+         xm(j)       = 0.
+         wice0(j)    = mice(j)
+         wliq0(j)    = mliq(j)
+         wmass0(j)   = mice(j) + mliq(j)
+    enddo
+
+    if(ist == 1) then
+      do j = 1,nsoil
+         if (opt_frz == 1) then
+            if(stc(j) < tfrz) then
+               smp = hfus*(tfrz-stc(j))/(grav*stc(j))             
+               supercool(j) = parameters%smcmax(j)*(smp/parameters%psisat(j))**(-1./parameters%bexp(j))
+               supercool(j) = supercool(j)*dzsnso(j)*1000.        
+            end if
+         end if
+         if (opt_frz == 2) then
+               call frh2o (parameters,j,supercool(j),stc(j),smc(j),sh2o(j))
+               supercool(j) = supercool(j)*dzsnso(j)*1000.        
+         end if
+      enddo
+    end if
+
+    do j = isnow+1,nsoil
+         if (mice(j) > 0. .and. stc(j) >= tfrz) then  
+             imelt(j) = 1
+         endif
+         if (mliq(j) > supercool(j) .and. stc(j) < tfrz) then
+             imelt(j) = 2
+         endif
+
+         
+         if (isnow == 0 .and. sneqv > 0. .and. j == 1) then
+             if (stc(j) >= tfrz) then
+                imelt(j) = 1
+             endif
+         endif
+    enddo
+
+    do j = isnow+1,nsoil
+         if (imelt(j) > 0) then
+             hm(j) = (stc(j)-tfrz)/fact(j)
+             stc(j) = tfrz
+         endif
+
+         if (imelt(j) == 1 .and. hm(j) < 0.) then
+            hm(j) = 0.
+            imelt(j) = 0
+         endif
+         if (imelt(j) == 2 .and. hm(j) > 0.) then
+            hm(j) = 0.
+            imelt(j) = 0
+         endif
+         xm(j) = hm(j)*dt/hfus                           
+    enddo
+
+
+    if (isnow == 0 .and. sneqv > 0. .and. xm(1) > 0.) then  
+        temp1  = sneqv
+        sneqv  = max(0.,temp1-xm(1))  
+        propor = sneqv/temp1
+        snowh  = max(0.,propor * snowh)
+        heatr  = hm(1) - hfus*(temp1-sneqv)/dt  
+        if (heatr > 0.) then
+              xm(1) = heatr*dt/hfus             
+              hm(1) = heatr                    
+        else
+              xm(1) = 0.
+              hm(1) = 0.
+        endif
+        qmelt   = max(0.,(temp1-sneqv))/dt
+        xmf     = hfus*qmelt
+        ponding = temp1-sneqv
+    endif
+
+
+    do j = isnow+1,nsoil
+      if (imelt(j) > 0 .and. abs(hm(j)) > 0.) then
+
+         heatr = 0.
+         if (xm(j) > 0.) then                            
+            mice(j) = max(0., wice0(j)-xm(j))
+            heatr = hm(j) - hfus*(wice0(j)-mice(j))/dt
+         else if (xm(j) < 0.) then                      
+            if (j <= 0) then                             
+               mice(j) = min(wmass0(j), wice0(j)-xm(j))  
+            else                                         
+               if (wmass0(j) < supercool(j)) then
+                  mice(j) = 0.
+               else
+                  mice(j) = min(wmass0(j) - supercool(j),wice0(j)-xm(j))
+                  mice(j) = max(mice(j),0.0)
+               endif
+            endif
+            heatr = hm(j) - hfus*(wice0(j)-mice(j))/dt
+         endif
+
+         mliq(j) = max(0.,wmass0(j)-mice(j))
+
+         if (abs(heatr) > 0.) then
+            stc(j) = stc(j) + fact(j)*heatr
+            if (j <= 0) then                             
+               if (mliq(j)*mice(j)>0.) stc(j) = tfrz
+            end if
+         endif
+
+         xmf = xmf + hfus * (wice0(j)-mice(j))/dt
+
+         if (j < 1) then
+            qmelt = qmelt + max(0.,(wice0(j)-mice(j)))/dt
+         endif
+      endif
+    enddo
+
+    do j = isnow+1,0             
+       snliq(j) = mliq(j)
+       snice(j) = mice(j)
+    end do
+
+    do j = 1, nsoil              
+       sh2o(j) =  mliq(j)            / (1000. * dzsnso(j))
+       smc(j)  = (mliq(j) + mice(j)) / (1000. * dzsnso(j))
+    end do
+   
+  end subroutine phasechange
+
+
+
+  subroutine frh2o (parameters,isoil,free,tkelv,smc,sh2o)
+
+    implicit none
+  type (noahmp_parameters), intent(in) :: parameters
+    integer,intent(in)   :: isoil
+    real(r8)  , intent(in)     :: sh2o,smc,tkelv
+    real(r8)  , intent(out)    :: free
+    real(r8)           :: bx,denom,df,dswl,fk,swl,swlk
+    integer              :: nlog,kcount
+
+    real(r8)  , parameter      :: ck = 8.0, blim = 5.5, error = 0.005,       &
+                              dice = 920.0
+    character(len=80)    :: message
+
+    bx = parameters%bexp(isoil)
+    if (parameters%bexp(isoil) >  blim) bx = blim
+    nlog = 0
+    kcount = 0
+    if (tkelv > (tfrz- 1.e-3)) then
+       free = smc
+    else
+
+       if (ck /= 0.0) then
+          swl = smc - sh2o
+          if (swl > (smc -0.02)) swl = smc -0.02
+          if (swl < 0.) swl = 0.
+1001      continue
+          if (.not.( (nlog < 10) .and. (kcount == 0)))   goto 1002
+          nlog = nlog +1
+          !df = alog ( ( parameters%psisat(isoil) * grav / hfus ) * ( ( 1. + ck * swl )**2.) * &
+               !( parameters%smcmax(isoil) / (smc - swl) )** bx) - alog ( - (               &
+               !tkelv - tfrz)/ tkelv)
+               df = log ( ( parameters%psisat(isoil) * grav / hfus ) * ( ( 1. + ck * swl )**2.) * &
+               ( parameters%smcmax(isoil) / (smc - swl) )** bx) - log ( - (               &
+               tkelv - tfrz)/ tkelv)
+          denom = 2. * ck / ( 1. + ck * swl ) + bx / ( smc - swl )
+          swlk = swl - df / denom
+
+          if (swlk > (smc -0.02)) swlk = smc - 0.02
+          if (swlk < 0.) swlk = 0.
+
+          dswl = abs (swlk - swl)
+          swl = swlk
+          if ( dswl <= error ) then
+             kcount = kcount +1
+          end if
+
+
+          goto 1001
+1002      continue
+          free = smc - swl
+       end if
+
+
+       if (kcount == 0) then
+          write(message, '("flerchinger used in new version. iterations=", i6)') nlog
+          print*, (trim(message))
+          fk = ( ( (hfus / (grav * ( - parameters%psisat(isoil))))*                    &
+               ( (tkelv - tfrz)/ tkelv))** ( -1/ bx))* parameters%smcmax(isoil)
+          if (fk < 0.02) fk = 0.02
+          free = min (fk, smc)
+
+       end if
+    end if
+
+  end subroutine frh2o
+
+
+  subroutine water (parameters,vegtyp ,nsnow  ,nsoil  ,imelt  ,dt     ,uu     , & 
+                    vv     ,fcev   ,fctr   ,qprecc ,qprecl ,elai   , & 
+                    esai   ,sfctmp ,qvap   ,qdew   ,zsoil  ,btrani , & 
+                    ficeold,ponding,tg     ,ist    ,fveg   ,iloc   ,jloc ,smceq , & 
+                    bdfall ,fp     ,rain   ,snow,                    & 
+		    qsnow  ,qrain  ,snowhin,latheav,latheag,frozen_canopy,frozen_ground,    & 
+                    isnow  ,canliq ,canice ,tv     ,snowh  ,sneqv  , & 
+                    snice  ,snliq  ,stc    ,zsnso  ,sh2o   ,smc    , & 
+                    sice   ,zwt    ,wa     ,wt     ,dzsnso ,wslake , & 
+                    smcwtd ,deeprech,rech                          , & 
+                    cmc    ,ecan   ,etran  ,fwet   ,runsrf ,runsub , & 
+                    qin    ,qdis   ,ponding1       ,ponding2,        &
+                    qsnbot                                           &
+                    )  
+
+  implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer,                         intent(in)    :: iloc    
+  integer,                         intent(in)    :: jloc    
+  integer,                         intent(in)    :: vegtyp  
+  integer,                         intent(in)    :: nsnow   
+  integer                        , intent(in)    :: ist     
+  integer,                         intent(in)    :: nsoil   
+  integer, dimension(-nsnow+1:0) , intent(in)    :: imelt   
+  real(r8)  ,                            intent(in)    :: dt      
+  real(r8)  ,                            intent(in)    :: uu      
+  real(r8)  ,                            intent(in)    :: vv      
+  real(r8)  ,                            intent(in)    :: fcev    
+  real(r8)  ,                            intent(in)    :: fctr    
+  real(r8)  ,                            intent(in)    :: qprecc  
+  real(r8)  ,                            intent(in)    :: qprecl  
+  real(r8)  ,                            intent(in)    :: elai    
+  real(r8)  ,                            intent(in)    :: esai    
+  real(r8)  ,                            intent(in)    :: sfctmp  
+  real(r8)  ,                            intent(in)    :: qvap    
+  real(r8)  ,                            intent(in)    :: qdew    
+  real(r8)  , dimension(       1:nsoil), intent(in)    :: zsoil   
+  real(r8)  , dimension(       1:nsoil), intent(in)    :: btrani  
+  real(r8)  , dimension(-nsnow+1:    0), intent(in)    :: ficeold 
+
+  real(r8)                    , intent(in)    :: tg      
+  real(r8)                    , intent(in)    :: fveg    
+  real(r8)                    , intent(in)    :: bdfall   
+  real(r8)                    , intent(in)    :: fp       
+  real(r8)                    , intent(in)    :: rain     
+  real(r8)                    , intent(in)    :: snow     
+  real(r8)  , dimension(       1:nsoil), intent(in)    :: smceq   
+  real(r8)                    , intent(in)    :: qsnow   
+  real(r8)                    , intent(in)    :: qrain   
+  real(r8)                    , intent(in)    :: snowhin 
+
+
+  integer,                         intent(inout) :: isnow   
+  real(r8)  ,                            intent(inout) :: canliq  
+  real(r8)  ,                            intent(inout) :: canice  
+  real(r8)  ,                            intent(inout) :: tv      
+  real(r8)  ,                            intent(inout) :: snowh   
+  real(r8)  ,                            intent(inout) :: sneqv   
+  real(r8)  , dimension(-nsnow+1:    0), intent(inout) :: snice   
+  real(r8)  , dimension(-nsnow+1:    0), intent(inout) :: snliq   
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: stc     
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: zsnso   
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: dzsnso  
+  real(r8)  , dimension(       1:nsoil), intent(inout) :: sh2o    
+  real(r8)  , dimension(       1:nsoil), intent(inout) :: sice    
+  real(r8)  , dimension(       1:nsoil), intent(inout) :: smc     
+  real(r8)  ,                            intent(inout) :: zwt     
+  real(r8)  ,                            intent(inout) :: wa      
+  real(r8)  ,                            intent(inout) :: wt      
+                                                            
+  real(r8)  ,                            intent(inout) :: wslake  
+  real(r8)                    , intent(inout) :: ponding 
+  real(r8)  ,                            intent(inout) :: smcwtd 
+  real(r8)  ,                            intent(inout) :: deeprech 
+  real(r8)  ,                            intent(inout) :: rech 
+
+
+  real(r8)  ,                            intent(out)   :: cmc     
+  real(r8)  ,                            intent(out)   :: ecan    
+  real(r8)  ,                            intent(out)   :: etran   
+  real(r8)  ,                            intent(out)   :: fwet    
+  real(r8)  ,                            intent(out)   :: runsrf  
+  real(r8)  ,                            intent(out)   :: runsub  
+  real(r8)  ,                            intent(out)   :: qin     
+  real(r8)  ,                            intent(out)   :: qdis    
+  real(r8)  ,                            intent(out)   :: ponding1
+  real(r8)  ,                            intent(out)   :: ponding2
+  real(r8)  ,                            intent(out)   :: qsnbot  
+  real(r8)                        , intent(in)   :: latheav 
+  real(r8)                        , intent(in)   :: latheag 
+  logical                           , intent(in)   :: frozen_ground 
+  logical                           , intent(in)   :: frozen_canopy 
+  integer                                        :: iz
+  real(r8)                                      :: qinsur  
+  real(r8)                                      :: qseva   
+  real(r8)                                      :: qsdew   
+  real(r8)                                      :: qsnfro  
+  real(r8)                                      :: qsnsub  
+  real(r8)  , dimension(       1:nsoil)                :: etrani  
+  real(r8)  , dimension(       1:nsoil)                :: wcnd   
+  real(r8)                                      :: qdrain  
+  real(r8)                                      :: snoflow 
+  real(r8)                                      :: fcrmax 
+  real(r8)  , parameter ::  wslmax = 5000.      
+
+
+   etrani(1:nsoil) = 0.
+   snoflow         = 0.
+   runsub          = 0.
+   qinsur          = 0.
+
+   call canwater (parameters,vegtyp ,dt     , & 
+                  fcev   ,fctr   ,elai   , & 
+                  esai   ,tg     ,fveg   ,iloc   , jloc, & 
+                  bdfall ,frozen_canopy  , & 
+                  canliq ,canice ,tv     ,                 & 
+                  cmc    ,ecan   ,etran  , & 
+                  fwet      )                           
+
+     qsnsub = 0.
+     if (sneqv > 0.) then
+       qsnsub = min(qvap, sneqv/dt)
+     endif
+     qseva = qvap-qsnsub
+
+     qsnfro = 0.
+     if (sneqv > 0.) then
+        qsnfro = qdew
+     endif
+     qsdew = qdew - qsnfro
+
+     call snowwater (parameters,nsnow  ,nsoil  ,imelt  ,dt     ,zsoil  , & 
+          &          sfctmp ,snowhin,qsnow  ,qsnfro ,qsnsub , & 
+          &          qrain  ,ficeold,iloc   ,jloc   ,         & 
+          &          isnow  ,snowh  ,sneqv  ,snice  ,snliq  , & 
+          &          sh2o   ,sice   ,stc    ,zsnso  ,dzsnso , & 
+          &          qsnbot ,snoflow,ponding1       ,ponding2)  
+
+   if(frozen_ground) then
+      sice(1) =  sice(1) + (qsdew-qseva)*dt/(dzsnso(1)*1000.)
+      qsdew = 0.0
+      qseva = 0.0
+      if(sice(1) < 0.) then
+         sh2o(1) = sh2o(1) + sice(1)
+         sice(1) = 0.
+      end if
+   end if
+
+    qinsur = (ponding+ponding1+ponding2)/dt * 0.001
+
+    if(isnow == 0) then
+       qinsur = qinsur+(qsnbot + qsdew + qrain) * 0.001
+    else
+       qinsur = qinsur+(qsnbot + qsdew) * 0.001
+    endif
+
+    qseva  = qseva * 0.001 
+
+    do iz = 1, parameters%nroot
+       etrani(iz) = etran * btrani(iz) * 0.001
+    enddo
+
+    if (ist == 2) then                                        
+       runsrf = 0.
+       if(wslake >= wslmax) runsrf = qinsur*1000.             
+       wslake = wslake + (qinsur-qseva)*1000.*dt -runsrf*dt   
+    else                                                      
+       call      soilwater (parameters,nsoil  ,nsnow  ,dt     ,zsoil  ,dzsnso , & 
+                            qinsur ,qseva  ,etrani ,sice   ,iloc   , jloc , & 
+                            sh2o   ,smc    ,zwt    ,vegtyp , & 
+                           smcwtd, deeprech                       , & 
+                            runsrf ,qdrain ,runsub ,wcnd   ,fcrmax )   
+ 
+       if(opt_run == 1) then 
+          call groundwater (parameters,nsnow  ,nsoil  ,dt     ,sice   ,zsoil  , & 
+                            stc    ,wcnd   ,fcrmax ,iloc   ,jloc   , & 
+                            sh2o   ,zwt    ,wa     ,wt     ,         & 
+                            qin    ,qdis   )                           
+          runsub       = qdis          
+       end if
+
+       if(opt_run == 3 .or. opt_run == 4) then 
+          runsub       = runsub + qdrain        
+       end if
+
+       do iz = 1,nsoil
+           smc(iz) = sh2o(iz) + sice(iz)
+       enddo
+ 
+       if(opt_run == 5) then
+          call shallowwatertable (parameters,nsnow  ,nsoil, zsoil, dt       , & 
+                         dzsnso ,smceq   ,iloc , jloc        , & 
+                         smc    ,zwt    ,smcwtd ,rech, qdrain  ) 
+
+          sh2o(nsoil) = smc(nsoil) - sice(nsoil)
+          runsub = runsub + qdrain 
+          wa = 0.
+       endif
+
+    endif
+
+    runsub       = runsub + snoflow         
+
+  end subroutine water
+
+
+
+  subroutine canwater (parameters,vegtyp ,dt     , & 
+                       fcev   ,fctr   ,elai   , & 
+                       esai   ,tg     ,fveg   ,iloc   , jloc , & 
+                       bdfall ,frozen_canopy  ,  & 
+                       canliq ,canice ,tv     ,                 & 
+                       cmc    ,ecan   ,etran  , & 
+                       fwet      )                           
+
+  implicit none
+  type (noahmp_parameters), intent(in) :: parameters
+  integer,intent(in)  :: iloc    
+  integer,intent(in)  :: jloc    
+  integer,intent(in)  :: vegtyp  
+  real(r8)  ,   intent(in)  :: dt      
+  real(r8)  ,   intent(in)  :: fcev    
+  real(r8)  ,   intent(in)  :: fctr    
+  real(r8)  ,   intent(in)  :: elai    
+  real(r8)  ,   intent(in)  :: esai    
+  real(r8)  ,   intent(in)  :: tg      
+  real(r8)  ,   intent(in)  :: fveg    
+  logical    , intent(in)   :: frozen_canopy 
+  real(r8)                    , intent(in)    :: bdfall   
+  real(r8)  , intent(inout) :: canliq  
+  real(r8)  , intent(inout) :: canice  
+  real(r8)  , intent(inout) :: tv      
+  real(r8)  , intent(out)   :: cmc     
+  real(r8)  , intent(out)   :: ecan    
+  real(r8)  , intent(out)   :: etran   
+  real(r8)  , intent(out)   :: fwet    
+  real(r8)                            :: maxsno  
+  real(r8)                            :: maxliq  
+  real(r8)                            :: qevac   
+  real(r8)                            :: qdewc   
+  real(r8)                            :: qfroc   
+  real(r8)                            :: qsubc   
+  real(r8)                            :: qmeltc  
+  real(r8)                            :: qfrzc   
+  real(r8)                            :: canmas  
+
+      ecan    = 0.0
+      maxliq =  parameters%ch2op * (elai+ esai)
+
+      if (.not.frozen_canopy) then             
+        etran = max( fctr/hvap, 0. )
+        qevac = max( fcev/hvap, 0. )
+        qdewc = abs( min( fcev/hvap, 0. ) )
+        qsubc = 0.
+        qfroc = 0.
+      else
+        etran = max( fctr/hsub, 0. )
+        qevac = 0.
+        qdewc = 0.
+        qsubc = max( fcev/hsub, 0. )
+        qfroc = abs( min( fcev/hsub, 0. ) )
+      endif
+
+       qevac = min(canliq/dt,qevac)
+       canliq=max(0.,canliq+(qdewc-qevac)*dt)
+       if(canliq <= 1.e-06) canliq = 0.0
+
+      maxsno = 6.6*(0.27+46./bdfall) * (elai+ esai)
+
+      qsubc = min(canice/dt,qsubc) 
+      canice= max(0.,canice + (qfroc-qsubc)*dt)
+      if(canice.le.1.e-6) canice = 0.
+     
+
+      if(canice.gt.0.) then
+           fwet = max(0.,canice) / max(maxsno,1.e-06)
+      else
+           fwet = max(0.,canliq) / max(maxliq,1.e-06)
+      endif
+      fwet = min(fwet, 1.) ** 0.667
+      qmeltc = 0.
+      qfrzc = 0.
+
+      if(canice.gt.1.e-6.and.tv.gt.tfrz) then
+         qmeltc = min(canice/dt,(tv-tfrz)*cice*canice/denice/(dt*hfus))
+         canice = max(0.,canice - qmeltc*dt)
+         canliq = max(0.,canliq + qmeltc*dt)
+         tv     = fwet*tfrz + (1.-fwet)*tv
+      endif
+
+      if(canliq.gt.1.e-6.and.tv.lt.tfrz) then
+         qfrzc  = min(canliq/dt,(tfrz-tv)*cwat*canliq/denh2o/(dt*hfus))
+         canliq = max(0.,canliq - qfrzc*dt)
+         canice = max(0.,canice + qfrzc*dt)
+         tv     = fwet*tfrz + (1.-fwet)*tv
+      endif
+
+      cmc = canliq + canice
+      ecan = qevac + qsubc - qdewc - qfroc
+
+  end subroutine canwater
+
+
+
+  subroutine snowwater (parameters,nsnow  ,nsoil  ,imelt  ,dt     ,zsoil  , & 
+                        sfctmp ,snowhin,qsnow  ,qsnfro ,qsnsub , & 
+                        qrain  ,ficeold,iloc   ,jloc   ,         & 
+                        isnow  ,snowh  ,sneqv  ,snice  ,snliq  , & 
+                        sh2o   ,sice   ,stc    ,zsnso  ,dzsnso , & 
+                        qsnbot ,snoflow,ponding1       ,ponding2)  
+
+  implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer,                         intent(in)    :: iloc   
+  integer,                         intent(in)    :: jloc   
+  integer,                         intent(in)    :: nsnow  
+  integer,                         intent(in)    :: nsoil  
+  integer, dimension(-nsnow+1:0) , intent(in)    :: imelt  
+  real(r8)  ,                            intent(in)    :: dt     
+  real(r8)  , dimension(       1:nsoil), intent(in)    :: zsoil  
+  real(r8)  ,                            intent(in)    :: sfctmp 
+  real(r8)  ,                            intent(in)    :: snowhin
+  real(r8)  ,                            intent(in)    :: qsnow  
+  real(r8)  ,                            intent(in)    :: qsnfro 
+  real(r8)  ,                            intent(in)    :: qsnsub 
+  real(r8)  ,                            intent(in)    :: qrain  
+  real(r8)  , dimension(-nsnow+1:0)    , intent(in)    :: ficeold
+  integer,                         intent(inout) :: isnow  
+  real(r8)  ,                            intent(inout) :: snowh  
+  real(r8)  ,                            intent(inout) :: sneqv  
+  real(r8)  , dimension(-nsnow+1:    0), intent(inout) :: snice  
+  real(r8)  , dimension(-nsnow+1:    0), intent(inout) :: snliq  
+  real(r8)  , dimension(       1:nsoil), intent(inout) :: sh2o   
+  real(r8)  , dimension(       1:nsoil), intent(inout) :: sice   
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: stc    
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: zsnso  
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: dzsnso 
+  real(r8)  ,                              intent(out) :: qsnbot 
+  real(r8)  ,                              intent(out) :: snoflow
+  real(r8)  ,                              intent(out) :: ponding1
+  real(r8)  ,                              intent(out) :: ponding2
+  integer :: iz,i
+  real(r8)                       :: bdsnow  
+
+   snoflow = 0.0
+   ponding1 = 0.0
+   ponding2 = 0.0
+
+   call snowfall (parameters,nsoil  ,nsnow  ,dt     ,qsnow  ,snowhin, & 
+                  sfctmp ,iloc   ,jloc   ,                 & 
+                  isnow  ,snowh  ,dzsnso ,stc    ,snice  , & 
+                  snliq  ,sneqv  )                           
+
+   if(isnow < 0) &        
+   call  compact (parameters,nsnow  ,nsoil  ,dt     ,stc    ,snice  , & 
+                  snliq  ,zsoil  ,imelt  ,ficeold,iloc   , jloc ,& 
+                  isnow  ,dzsnso ,zsnso  )                   
+
+   if(isnow < 0) &        
+   call  combine (parameters,nsnow  ,nsoil  ,iloc   ,jloc   ,         & 
+                  isnow  ,sh2o   ,stc    ,snice  ,snliq  , & 
+                  dzsnso ,sice   ,snowh  ,sneqv  ,         & 
+                  ponding1       ,ponding2)                  
+
+   if(isnow < 0) &        
+   call   divide (parameters,nsnow  ,nsoil  ,                         & 
+                  isnow  ,stc    ,snice  ,snliq  ,dzsnso )   
+
+   call  snowh2o (parameters,nsnow  ,nsoil  ,dt     ,qsnfro ,qsnsub , & 
+                  qrain  ,iloc   ,jloc   ,                 & 
+                  isnow  ,dzsnso ,snowh  ,sneqv  ,snice  , & 
+                  snliq  ,sh2o   ,sice   ,stc    ,         & 
+                  qsnbot ,ponding1       ,ponding2)           
+
+
+   do iz = -nsnow+1, isnow
+        snice(iz) = 0.
+        snliq(iz) = 0.
+        stc(iz)   = 0.
+        dzsnso(iz)= 0.
+        zsnso(iz) = 0.
+   enddo
+
+   if(sneqv > 2000.) then   
+      bdsnow      = snice(0) / dzsnso(0)
+      snoflow     = (sneqv - 2000.)
+      snice(0)    = snice(0)  - snoflow 
+      dzsnso(0)   = dzsnso(0) - snoflow/bdsnow
+      snoflow     = snoflow / dt
+   end if
+
+   if(isnow < 0) then  
+       sneqv = 0.
+       do iz = isnow+1,0
+             sneqv = sneqv + snice(iz) + snliq(iz)
+       enddo
+   end if
+
+   do iz = isnow+1, 0
+        dzsnso(iz) = -dzsnso(iz)
+   end do
+
+   dzsnso(1) = zsoil(1)
+   do iz = 2,nsoil
+        dzsnso(iz) = (zsoil(iz) - zsoil(iz-1))
+   end do
+
+   zsnso(isnow+1) = dzsnso(isnow+1)
+   do iz = isnow+2 ,nsoil
+       zsnso(iz) = zsnso(iz-1) + dzsnso(iz)
+   enddo
+
+   do iz = isnow+1 ,nsoil
+       dzsnso(iz) = -dzsnso(iz)
+   end do
+
+  end subroutine snowwater
+
+
+
+  subroutine snowfall (parameters,nsoil  ,nsnow  ,dt     ,qsnow  ,snowhin , & 
+                       sfctmp ,iloc   ,jloc   ,                  & 
+                       isnow  ,snowh  ,dzsnso ,stc    ,snice   , & 
+                       snliq  ,sneqv  )                            
+
+    implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer,                            intent(in) :: iloc   
+  integer,                            intent(in) :: jloc   
+  integer,                            intent(in) :: nsoil  
+  integer,                            intent(in) :: nsnow  
+  real(r8)  ,                               intent(in) :: dt     
+  real(r8)  ,                               intent(in) :: qsnow  
+  real(r8)  ,                               intent(in) :: snowhin
+  real(r8)  ,                               intent(in) :: sfctmp 
+  integer,                         intent(inout) :: isnow  
+  real(r8)  ,                            intent(inout) :: snowh  
+  real(r8)  ,                            intent(inout) :: sneqv  
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: dzsnso 
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: stc    
+  real(r8)  , dimension(-nsnow+1:    0), intent(inout) :: snice  
+  real(r8)  , dimension(-nsnow+1:    0), intent(inout) :: snliq  
+  integer :: newnode            
+
+    newnode  = 0
+    if(isnow == 0 .and. qsnow > 0.)  then
+      snowh = snowh + snowhin * dt
+      sneqv = sneqv + qsnow * dt
+    end if
+
+ 
+    if(isnow == 0  .and. qsnow>0. .and. snowh >= 0.025) then 
+
+      isnow    = -1
+      newnode  =  1
+      dzsnso(0)= snowh
+      snowh    = 0.
+      stc(0)   = min(273.16, sfctmp)   
+      snice(0) = sneqv
+      snliq(0) = 0.
+    end if
+
+    if(isnow <  0 .and. newnode == 0 .and. qsnow > 0.) then
+         snice(isnow+1)  = snice(isnow+1)   + qsnow   * dt
+         dzsnso(isnow+1) = dzsnso(isnow+1)  + snowhin * dt
+    endif
+  end subroutine snowfall
+
+
+
+  subroutine combine (parameters,nsnow  ,nsoil  ,iloc   ,jloc   ,         & 
+                      isnow  ,sh2o   ,stc    ,snice  ,snliq  , & 
+                      dzsnso ,sice   ,snowh  ,sneqv  ,         & 
+                      ponding1       ,ponding2)                  
+
+   implicit none
+  type (noahmp_parameters), intent(in) :: parameters
+    integer, intent(in)     :: iloc
+    integer, intent(in)     :: jloc
+    integer, intent(in)     :: nsnow                        
+    integer, intent(in)     :: nsoil                        
+    integer,                         intent(inout) :: isnow 
+    real(r8)  , dimension(       1:nsoil), intent(inout) :: sh2o  
+    real(r8)  , dimension(       1:nsoil), intent(inout) :: sice  
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: stc   
+    real(r8)  , dimension(-nsnow+1:    0), intent(inout) :: snice 
+    real(r8)  , dimension(-nsnow+1:    0), intent(inout) :: snliq 
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: dzsnso
+    real(r8)  ,                            intent(inout) :: sneqv 
+    real(r8)  ,                            intent(inout) :: snowh 
+    real(r8)  ,                            intent(out) :: ponding1
+    real(r8)  ,                            intent(out) :: ponding2
+    integer :: i,j,k,l               
+    integer :: isnow_old             
+    integer :: mssi                  
+    integer :: neibor                
+    real(r8)                       :: zwice                 
+    real(r8)                       :: zwliq                 
+    real(r8)                       :: dzmin(3)              
+
+    data dzmin /0.025, 0.025, 0.1/  
+
+       isnow_old = isnow
+
+       do j = isnow_old+1,0
+          if (snice(j) <= .1) then
+             if(j /= 0) then
+                snliq(j+1) = snliq(j+1) + snliq(j)
+                snice(j+1) = snice(j+1) + snice(j)
+             else
+               if (isnow_old < -1) then    
+                snliq(j-1) = snliq(j-1) + snliq(j)
+                snice(j-1) = snice(j-1) + snice(j)
+               else
+	         if(snice(j) >= 0.) then
+                  ponding1 = snliq(j)    
+                  sneqv = snice(j)       
+                  snowh = dzsnso(j)      
+		 else   
+		  ponding1 = snliq(j) + snice(j)
+		  if(ponding1 < 0.) then  
+		   sice(1) = max(0.0,sice(1)+ponding1/(dzsnso(1)*1000.))
+                   ponding1 = 0.0
+		  end if
+                  sneqv = 0.0
+                  snowh = 0.0
+		 end if
+                 snliq(j) = 0.0
+                 snice(j) = 0.0
+                 dzsnso(j) = 0.0
+               endif
+             endif
+
+             if (j > isnow+1 .and. isnow < -1) then
+                do i = j, isnow+2, -1
+                   stc(i)   = stc(i-1)
+                   snliq(i) = snliq(i-1)
+                   snice(i) = snice(i-1)
+                   dzsnso(i)= dzsnso(i-1)
+                end do
+             end if
+             isnow = isnow + 1
+          end if
+       end do
+
+       if(sice(1) < 0.) then
+          sh2o(1) = sh2o(1) + sice(1)
+          sice(1) = 0.
+       end if
+
+       if(isnow ==0) return   
+
+       sneqv  = 0.
+       snowh  = 0.
+       zwice  = 0.
+       zwliq  = 0.
+
+       do j = isnow+1,0
+             sneqv = sneqv + snice(j) + snliq(j)
+             snowh = snowh + dzsnso(j)
+             zwice = zwice + snice(j)
+             zwliq = zwliq + snliq(j)
+       end do
+
+
+       if (snowh < 0.025 .and. isnow < 0 ) then 
+
+          isnow  = 0
+          sneqv = zwice
+          ponding2 = zwliq           
+          if(sneqv <= 0.) snowh = 0. 
+       end if
+
+
+       if (isnow < -1) then
+
+          isnow_old = isnow
+          mssi     = 1
+
+          do i = isnow_old+1,0
+             if (dzsnso(i) < dzmin(mssi)) then
+
+                if (i == isnow+1) then
+                   neibor = i + 1
+                else if (i == 0) then
+                   neibor = i - 1
+                else
+                   neibor = i + 1
+                   if ((dzsnso(i-1)+dzsnso(i)) < (dzsnso(i+1)+dzsnso(i))) neibor = i-1
+                end if
+
+                
+                if (neibor > i) then
+                   j = neibor
+                   l = i
+                else
+                   j = i
+                   l = neibor
+                end if
+
+                call combo (parameters,dzsnso(j), snliq(j), snice(j), &
+                   stc(j), dzsnso(l), snliq(l), snice(l), stc(l) )
+
+                
+                if (j-1 > isnow+1) then
+                   do k = j-1, isnow+2, -1
+                      stc(k)   = stc(k-1)
+                      snice(k) = snice(k-1)
+                      snliq(k) = snliq(k-1)
+                      dzsnso(k) = dzsnso(k-1)
+                   end do
+                end if
+
+                
+                isnow = isnow + 1
+                if (isnow >= -1) exit
+             else
+
+                
+                mssi = mssi + 1
+
+             end if
+          end do
+
+       end if
+
+  end subroutine combine
+
+
+
+  subroutine divide (parameters,nsnow  ,nsoil  ,                         & 
+                     isnow  ,stc    ,snice  ,snliq  ,dzsnso  )  
+
+    implicit none
+    type (noahmp_parameters), intent(in) :: parameters
+    integer, intent(in)                            :: nsnow 
+    integer, intent(in)                            :: nsoil 
+    integer                        , intent(inout) :: isnow 
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: stc   
+    real(r8)  , dimension(-nsnow+1:    0), intent(inout) :: snice 
+    real(r8)  , dimension(-nsnow+1:    0), intent(inout) :: snliq 
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: dzsnso
+    integer                                        :: j     
+    integer                                        :: msno  
+    real(r8)                                      :: drr   
+    real(r8)  , dimension(       1:nsnow)                :: dz    
+    real(r8)  , dimension(       1:nsnow)                :: swice 
+    real(r8)  , dimension(       1:nsnow)                :: swliq 
+    real(r8)  , dimension(       1:nsnow)                :: tsno  
+    real(r8)                                      :: zwice 
+    real(r8)                                      :: zwliq 
+    real(r8)                                      :: propor
+    real(r8)                                      :: dtdz  
+
+
+    do j = 1,nsnow
+          if (j <= abs(isnow)) then
+             dz(j)    = dzsnso(j+isnow)
+             swice(j) = snice(j+isnow)
+             swliq(j) = snliq(j+isnow)
+             tsno(j)  = stc(j+isnow)
+          end if
+    end do
+
+       msno = abs(isnow)
+
+       if (msno == 1) then
+          
+          if (dz(1) > 0.05) then
+             msno = 2
+             dz(1)    = dz(1)/2.
+             swice(1) = swice(1)/2.
+             swliq(1) = swliq(1)/2.
+             dz(2)    = dz(1)
+             swice(2) = swice(1)
+             swliq(2) = swliq(1)
+             tsno(2)  = tsno(1)
+          end if
+       end if
+
+       if (msno > 1) then
+          if (dz(1) > 0.05) then
+             drr      = dz(1) - 0.05
+             propor   = drr/dz(1)
+             zwice    = propor*swice(1)
+             zwliq    = propor*swliq(1)
+             propor   = 0.05/dz(1)
+             swice(1) = propor*swice(1)
+             swliq(1) = propor*swliq(1)
+             dz(1)    = 0.05
+
+             call combo (parameters,dz(2), swliq(2), swice(2), tsno(2), drr, &
+                  zwliq, zwice, tsno(1))
+
+             
+             if (msno <= 2 .and. dz(2) > 0.20) then  
+
+                msno = 3
+                dtdz = (tsno(1) - tsno(2))/((dz(1)+dz(2))/2.)
+                dz(2)    = dz(2)/2.
+                swice(2) = swice(2)/2.
+                swliq(2) = swliq(2)/2.
+                dz(3)    = dz(2)
+                swice(3) = swice(2)
+                swliq(3) = swliq(2)
+                tsno(3) = tsno(2) - dtdz*dz(2)/2.
+                if (tsno(3) >= tfrz) then
+                   tsno(3)  = tsno(2)
+                else
+                   tsno(2) = tsno(2) + dtdz*dz(2)/2.
+                endif
+
+             end if
+          end if
+       end if
+
+       if (msno > 2) then
+          if (dz(2) > 0.2) then
+             drr = dz(2) - 0.2
+             propor   = drr/dz(2)
+             zwice    = propor*swice(2)
+             zwliq    = propor*swliq(2)
+             propor   = 0.2/dz(2)
+             swice(2) = propor*swice(2)
+             swliq(2) = propor*swliq(2)
+             dz(2)    = 0.2
+             call combo (parameters,dz(3), swliq(3), swice(3), tsno(3), drr, &
+                  zwliq, zwice, tsno(2))
+          end if
+       end if
+
+       isnow = -msno
+
+    do j = isnow+1,0
+             dzsnso(j) = dz(j-isnow)
+             snice(j) = swice(j-isnow)
+             snliq(j) = swliq(j-isnow)
+             stc(j)   = tsno(j-isnow)
+    end do
+
+  end subroutine divide
+
+
+
+  subroutine combo(parameters,dz,  wliq,  wice, t, dz2, wliq2, wice2, t2)
+
+    implicit none
+  type (noahmp_parameters), intent(in) :: parameters
+    real(r8)  , intent(in)    :: dz2   
+    real(r8)  , intent(in)    :: wliq2 
+    real(r8)  , intent(in)    :: wice2 
+    real(r8)  , intent(in)    :: t2    
+    real(r8)  , intent(inout) :: dz    
+    real(r8)  , intent(inout) :: wliq  
+    real(r8)  , intent(inout) :: wice  
+    real(r8)  , intent(inout) :: t     
+    real(r8)                            :: dzc   
+    real(r8)                            :: wliqc 
+    real(r8)                            :: wicec 
+    real(r8)                            :: tc    
+    real(r8)                            :: h     
+    real(r8)                            :: h2    
+    real(r8)                            :: hc    
+
+
+
+    dzc = dz+dz2
+    wicec = (wice+wice2)
+    wliqc = (wliq+wliq2)
+    h = (cice*wice+cwat*wliq) * (t-tfrz)+hfus*wliq
+    h2= (cice*wice2+cwat*wliq2) * (t2-tfrz)+hfus*wliq2
+
+    hc = h + h2
+    if(hc < 0.)then
+       tc = tfrz + hc/(cice*wicec + cwat*wliqc)
+    else if (hc.le.hfus*wliqc) then
+       tc = tfrz
+    else
+       tc = tfrz + (hc - hfus*wliqc) / (cice*wicec + cwat*wliqc)
+    end if
+
+    dz = dzc
+    wice = wicec
+    wliq = wliqc
+    t = tc
+
+  end subroutine combo
+
+
+
+  subroutine compact (parameters,nsnow  ,nsoil  ,dt     ,stc    ,snice  , & 
+                      snliq  ,zsoil  ,imelt  ,ficeold,iloc   , jloc , & 
+                      isnow  ,dzsnso ,zsnso )                    
+
+  implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+   integer,                         intent(in)    :: iloc   
+   integer,                         intent(in)    :: jloc   
+   integer,                         intent(in)    :: nsoil  
+   integer,                         intent(in)    :: nsnow  
+   integer, dimension(-nsnow+1:0) , intent(in)    :: imelt  
+   real(r8)  ,                            intent(in)    :: dt     
+   real(r8)  , dimension(-nsnow+1:nsoil), intent(in)    :: stc    
+   real(r8)  , dimension(-nsnow+1:    0), intent(in)    :: snice  
+   real(r8)  , dimension(-nsnow+1:    0), intent(in)    :: snliq  
+   real(r8)  , dimension(       1:nsoil), intent(in)    :: zsoil  
+   real(r8)  , dimension(-nsnow+1:    0), intent(in)    :: ficeold
+   integer,                         intent(inout) :: isnow  
+   real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: dzsnso 
+   real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: zsnso  
+
+   real(r8)  , parameter     :: c2 = 21.e-3   
+   real(r8)  , parameter     :: c3 = 2.5e-6   
+   real(r8)  , parameter     :: c4 = 0.04     
+   real(r8)  , parameter     :: c5 = 2.0      
+   real(r8)  , parameter     :: dm = 100.0    
+   real(r8)  , parameter     :: eta0 = 0.8e+6 
+                                        
+   real(r8)            :: burden 
+   real(r8)            :: ddz1   
+   real(r8)            :: ddz2   
+   real(r8)            :: ddz3   
+   real(r8)            :: dexpf  
+   real(r8)            :: td     
+   real(r8)            :: pdzdtc 
+   real(r8)            :: void   
+   real(r8)            :: wx     
+   real(r8)            :: bi     
+   real(r8)  , dimension(-nsnow+1:0) :: fice   
+
+   integer  :: j
+
+
+    burden = 0.0
+
+    do j = isnow+1, 0
+
+        wx      = snice(j) + snliq(j)
+        fice(j) = snice(j) / wx
+        void    = 1. - (snice(j)/denice + snliq(j)/denh2o) / dzsnso(j)
+
+        if (void > 0.001 .and. snice(j) > 0.1) then
+           bi = snice(j) / dzsnso(j)
+           td = max(0.,tfrz-stc(j))
+           dexpf = exp(-c4*td)
+
+           ddz1 = -c3*dexpf
+
+           if (bi > dm) ddz1 = ddz1*exp(-46.0e-3*(bi-dm))
+
+           if (snliq(j) > 0.01*dzsnso(j)) ddz1=ddz1*c5
+
+           ddz2 = -(burden+0.5*wx)*exp(-0.08*td-c2*bi)/eta0 
+
+
+           if (imelt(j) == 1) then
+              ddz3 = max(0.,(ficeold(j) - fice(j))/max(1.e-6,ficeold(j)))
+              ddz3 = - ddz3/dt           
+           else
+              ddz3 = 0.
+           end if
+
+           pdzdtc = (ddz1 + ddz2 + ddz3)*dt
+           pdzdtc = max(-0.5,pdzdtc)
+           dzsnso(j) = dzsnso(j)*(1.+pdzdtc)
+        end if
+
+        burden = burden + wx
+
+    end do
+  end subroutine compact
+
+
+
+  subroutine snowh2o (parameters,nsnow  ,nsoil  ,dt     ,qsnfro ,qsnsub , & 
+                      qrain  ,iloc   ,jloc   ,                 & 
+                      isnow  ,dzsnso ,snowh  ,sneqv  ,snice  , & 
+                      snliq  ,sh2o   ,sice   ,stc    ,         & 
+                      qsnbot ,ponding1       ,ponding2)          
+
+   implicit none
+  type (noahmp_parameters), intent(in) :: parameters
+   integer,                         intent(in)    :: iloc   
+   integer,                         intent(in)    :: jloc   
+   integer,                         intent(in)    :: nsnow  
+   integer,                         intent(in)    :: nsoil  
+   real(r8)  ,                            intent(in)    :: dt     
+   real(r8)  ,                            intent(in)    :: qsnfro 
+   real(r8)  ,                            intent(in)    :: qsnsub 
+   real(r8)  ,                            intent(in)    :: qrain  
+   real(r8)  ,                            intent(out)   :: qsnbot 
+   integer,                         intent(inout) :: isnow  
+   real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: dzsnso 
+   real(r8)  ,                            intent(inout) :: snowh  
+   real(r8)  ,                            intent(inout) :: sneqv  
+   real(r8)  , dimension(-nsnow+1:0),     intent(inout) :: snice  
+   real(r8)  , dimension(-nsnow+1:0),     intent(inout) :: snliq  
+   real(r8)  , dimension(       1:nsoil), intent(inout) :: sh2o   
+   real(r8)  , dimension(       1:nsoil), intent(inout) :: sice   
+   real(r8)  , dimension(-nsnow+1:nsoil), intent(inout) :: stc    
+   integer                     :: j         
+   real(r8)                         :: qin       
+   real(r8)                         :: qout      
+   real(r8)                         :: wgdif     
+   real(r8)  , dimension(-nsnow+1:0) :: vol_liq   
+   real(r8)  , dimension(-nsnow+1:0) :: vol_ice   
+   real(r8)  , dimension(-nsnow+1:0) :: epore     
+   real(r8)            :: propor, temp
+   real(r8)            :: ponding1, ponding2
+
+
+
+   if(sneqv == 0.) then
+      sice(1) =  sice(1) + (qsnfro-qsnsub)*dt/(dzsnso(1)*1000.)  
+      if(sice(1) < 0.) then
+         sh2o(1) = sh2o(1) + sice(1)
+         sice(1) = 0.
+      end if
+   end if
+
+   if(isnow == 0 .and. sneqv > 0.) then
+      temp   = sneqv
+      sneqv  = sneqv - qsnsub*dt + qsnfro*dt
+      propor = sneqv/temp
+      snowh  = max(0.,propor * snowh)
+
+      if(sneqv < 0.) then
+         sice(1) = sice(1) + sneqv/(dzsnso(1)*1000.)
+         sneqv   = 0.
+         snowh   = 0.
+      end if
+      if(sice(1) < 0.) then
+         sh2o(1) = sh2o(1) + sice(1)
+         sice(1) = 0.
+      end if
+   end if
+
+   if(snowh <= 1.e-8 .or. sneqv <= 1.e-6) then
+     snowh = 0.0
+     sneqv = 0.0
+   end if
+
+
+   if ( isnow < 0 ) then 
+
+      wgdif = snice(isnow+1) - qsnsub*dt + qsnfro*dt
+      snice(isnow+1) = wgdif
+      if (wgdif < 1.e-6 .and. isnow <0) then
+         call  combine (parameters,nsnow  ,nsoil  ,iloc, jloc   , & 
+              isnow  ,sh2o   ,stc    ,snice  ,snliq  , & 
+              dzsnso ,sice   ,snowh  ,sneqv  ,         & 
+              ponding1, ponding2 )                       
+      endif
+      
+      if ( isnow < 0 ) then 
+         snliq(isnow+1) = snliq(isnow+1) + qrain * dt
+         snliq(isnow+1) = max(0., snliq(isnow+1))
+      endif
+      
+   endif 
+
+
+   do j = -nsnow+1, 0
+      if (j >= isnow+1) then
+         vol_ice(j)      = min(1., snice(j)/(dzsnso(j)*denice))
+         epore(j)        = 1. - vol_ice(j)
+         vol_liq(j)      = min(epore(j),snliq(j)/(dzsnso(j)*denh2o))
+      end if
+   end do
+
+   qin = 0.
+   qout = 0.
+
+   
+
+   do j = -nsnow+1, 0
+      if (j >= isnow+1) then
+         snliq(j) = snliq(j) + qin
+         if (j <= -1) then
+            if (epore(j) < 0.05 .or. epore(j+1) < 0.05) then
+               qout = 0.
+            else
+               qout = max(0.,(vol_liq(j)-parameters%ssi*epore(j))*dzsnso(j))
+               qout = min(qout,(1.-vol_ice(j+1)-vol_liq(j+1))*dzsnso(j+1))
+            end if
+         else
+            qout = max(0.,(vol_liq(j) - parameters%ssi*epore(j))*dzsnso(j))
+         end if
+         qout = qout*1000.
+         snliq(j) = snliq(j) - qout
+         qin = qout
+      end if
+   end do
+
+   qsnbot = qout / dt           
+
+  end subroutine snowh2o
+
+
+
+  subroutine soilwater (parameters,nsoil  ,nsnow  ,dt     ,zsoil  ,dzsnso , & 
+                        qinsur ,qseva  ,etrani ,sice   ,iloc   , jloc, & 
+                        sh2o   ,smc    ,zwt    ,vegtyp ,& 
+                        smcwtd, deeprech                       ,& 
+                        runsrf ,qdrain ,runsub ,wcnd   ,fcrmax )   
+
+  implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer,                     intent(in) :: iloc   
+  integer,                     intent(in) :: jloc   
+  integer,                     intent(in) :: nsoil  
+  integer,                     intent(in) :: nsnow  
+  real(r8)  ,                        intent(in) :: dt     
+  real(r8)  , intent(in)                        :: qinsur 
+  real(r8)  , intent(in)                        :: qseva  
+  real(r8)  , dimension(1:nsoil),    intent(in) :: zsoil  
+  real(r8)  , dimension(1:nsoil),    intent(in) :: etrani 
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: dzsnso 
+  real(r8)  , dimension(1:nsoil), intent(in)   :: sice   
+  integer,                     intent(in) :: vegtyp
+  real(r8)  , dimension(1:nsoil), intent(inout) :: sh2o   
+  real(r8)  , dimension(1:nsoil), intent(inout) :: smc    
+  real(r8)  , intent(inout)                     :: zwt    
+  real(r8)  ,                     intent(inout) :: smcwtd 
+  real(r8)                     , intent(inout) :: deeprech
+  real(r8)  , intent(out)                       :: qdrain 
+  real(r8)  , intent(out)                       :: runsrf 
+  real(r8)  , intent(out)                       :: runsub 
+  real(r8)  , intent(out)                       :: fcrmax 
+  real(r8)  , dimension(1:nsoil), intent(out)   :: wcnd   
+  integer                                 :: k,iz   
+  integer                                 :: iter   
+  real(r8)                                     :: dtfine 
+  real(r8)  , dimension(1:nsoil)                :: rhstt  
+  real(r8)  , dimension(1:nsoil)                :: ai     
+  real(r8)  , dimension(1:nsoil)                :: bi     
+  real(r8)  , dimension(1:nsoil)                :: ci     
+  real(r8)                                     :: fff    
+  real(r8)                                     :: rsbmx  
+  real(r8)                                     :: pddum  
+  real(r8)                                     :: fice   
+  real(r8)                                     :: wplus  
+  real(r8)                                     :: rsat   
+  real(r8)                                     :: sicemax
+  real(r8)                                     :: sh2omin
+  real(r8)                                     :: wtsub  
+  real(r8)                                     :: mh2o   
+  real(r8)                                     :: fsat   
+  real(r8)  , dimension(1:nsoil)                :: mliq   
+  real(r8)                                     :: xs     
+  real(r8)                                     :: watmin 
+  real(r8)                                     :: qdrain_save 
+  real(r8)                                     :: epore  
+  real(r8)  , dimension(1:nsoil)                :: fcr    
+  integer                                 :: niter  
+  real(r8)                                     :: smctot 
+  real(r8)                                     :: dztot  
+  real(r8)  , parameter :: a = 4.0
+
+    runsrf = 0.0
+    pddum  = 0.0
+    rsat   = 0.0
+
+
+    do k = 1,nsoil
+       epore   = max ( 1.e-4 , ( parameters%smcmax(k) - sice(k) ) )
+       rsat    = rsat + max(0.,sh2o(k)-epore)*dzsnso(k)  
+       sh2o(k) = min(epore,sh2o(k))             
+    end do
+
+    do k = 1,nsoil
+       fice    = min(1.0,sice(k)/parameters%smcmax(k))
+       fcr(k)  = max(0.0,exp(-a*(1.-fice))- exp(-a)) /  &
+                        (1.0              - exp(-a))
+    end do
+
+    sicemax = 0.0
+    fcrmax  = 0.0
+    sh2omin = parameters%smcmax(1)
+    do k = 1,nsoil
+       if (sice(k) > sicemax) sicemax = sice(k)
+       if (fcr(k)  > fcrmax)  fcrmax  = fcr(k)
+       if (sh2o(k) < sh2omin) sh2omin = sh2o(k)
+    end do
+
+    if(opt_run == 2) then 
+        fff   = 2.0
+        rsbmx = 4.0
+        call zwteq (parameters,nsoil  ,nsnow  ,zsoil  ,dzsnso ,sh2o   ,zwt)
+        runsub = (1.0-fcrmax) * rsbmx * exp(-parameters%timean) * exp(-fff*zwt)   
+    end if
+
+
+    if ( parameters%urban_flag ) fcr(1)= 0.95
+
+    if(opt_run == 1) then
+       fff = 6.0
+       fsat   = parameters%fsatmx*exp(-0.5*fff*(zwt-2.0))
+       if(qinsur > 0.) then
+         runsrf = qinsur * ( (1.0-fcr(1))*fsat + fcr(1) )
+         pddum  = qinsur - runsrf                          
+       end if
+    end if
+
+    if(opt_run == 5) then
+       fff = 6.0
+       fsat   = parameters%fsatmx*exp(-0.5*fff*max(-2.0-zwt,0.))
+       if(qinsur > 0.) then
+         runsrf = qinsur * ( (1.0-fcr(1))*fsat + fcr(1) )
+         pddum  = qinsur - runsrf                          
+       end if
+    end if
+
+    if(opt_run == 2) then
+       fff   = 2.0
+       fsat   = parameters%fsatmx*exp(-0.5*fff*zwt)
+       if(qinsur > 0.) then
+         runsrf = qinsur * ( (1.0-fcr(1))*fsat + fcr(1) )
+         pddum  = qinsur - runsrf                          
+       end if
+    end if
+
+    if(opt_run == 3) then
+       call infil (parameters,nsoil  ,dt     ,zsoil  ,sh2o   ,sice   , & 
+                   sicemax,qinsur ,                         & 
+                   pddum  ,runsrf )                           
+    end if
+
+    if(opt_run == 4) then
+       smctot = 0.
+       dztot  = 0.
+       do k = 1,nsoil
+          dztot   = dztot  + dzsnso(k)  
+          smctot  = smctot + smc(k)/parameters%smcmax(k)*dzsnso(k)
+          if(dztot >= 2.0) exit
+       end do
+       smctot = smctot/dztot
+       fsat   = max(0.01,smctot) ** 4.        
+
+       if(qinsur > 0.) then
+         runsrf = qinsur * ((1.0-fcr(1))*fsat+fcr(1))  
+         pddum  = qinsur - runsrf                       
+       end if
+    end if
+
+
+    niter = 1
+
+    if(opt_inf == 1) then    
+       niter = 3
+       if (pddum*dt>dzsnso(1)*parameters%smcmax(1) ) then
+          niter = niter*2
+       end if
+    end if                 
+
+    dtfine  = dt / niter
+    qdrain_save = 0.0
+
+    do iter = 1, niter
+       call srt   (parameters,nsoil  ,zsoil  ,dtfine ,pddum  ,etrani , & 
+                   qseva  ,sh2o   ,smc    ,zwt    ,fcr    , & 
+                   sicemax,fcrmax ,iloc   ,jloc   ,smcwtd ,         & 
+                   rhstt  ,ai     ,bi     ,ci     ,qdrain , & 
+                   wcnd   )                                   
+  
+       call sstep (parameters,nsoil  ,nsnow  ,dtfine ,zsoil  ,dzsnso , & 
+                   sice   ,iloc   ,jloc   ,zwt            ,                 & 
+                   sh2o   ,smc    ,ai     ,bi     ,ci     , & 
+                   rhstt  ,smcwtd ,qdrain ,deeprech,                                 & 
+                   wplus)                                     
+       rsat =  rsat + wplus
+       qdrain_save = qdrain_save + qdrain
+    end do
+
+    qdrain = qdrain_save/niter
+
+    runsrf = runsrf * 1000. + rsat * 1000./dt  
+    qdrain = qdrain * 1000.
+
+
+    if(opt_run == 2) then
+         wtsub = 0.
+         do k = 1, nsoil
+           wtsub = wtsub + wcnd(k)*dzsnso(k)
+         end do
+
+         do k = 1, nsoil
+           mh2o    = runsub*dt*(wcnd(k)*dzsnso(k))/wtsub       
+           sh2o(k) = sh2o(k) - mh2o/(dzsnso(k)*1000.)
+         end do
+    end if
+
+
+   if(opt_run /= 1) then
+      do iz = 1, nsoil
+         mliq(iz) = sh2o(iz)*dzsnso(iz)*1000.
+      end do
+
+      watmin = 0.01           
+      do iz = 1, nsoil-1
+          if (mliq(iz) .lt. 0.) then
+             xs = watmin-mliq(iz)
+          else
+             xs = 0.
+          end if
+          mliq(iz  ) = mliq(iz  ) + xs
+          mliq(iz+1) = mliq(iz+1) - xs
+      end do
+
+        iz = nsoil
+        if (mliq(iz) .lt. watmin) then
+           xs = watmin-mliq(iz)
+        else
+           xs = 0.
+        end if
+        mliq(iz) = mliq(iz) + xs
+        runsub   = runsub - xs/dt
+        if(opt_run == 5)deeprech = deeprech - xs*1.e-3
+
+      do iz = 1, nsoil
+        sh2o(iz)     = mliq(iz) / (dzsnso(iz)*1000.)
+      end do
+   end if
+
+  end subroutine soilwater
+
+
+
+  subroutine zwteq (parameters,nsoil  ,nsnow  ,zsoil  ,dzsnso ,sh2o   ,zwt)
+
+  implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer,                         intent(in) :: nsoil  
+  integer,                         intent(in) :: nsnow  
+  real(r8)  , dimension(1:nsoil),        intent(in) :: zsoil  
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: dzsnso 
+  real(r8)  , dimension(1:nsoil),        intent(in) :: sh2o   
+  real(r8)  ,                           intent(out) :: zwt    
+
+  integer :: k                      
+  integer, parameter :: nfine = 100 
+  real(r8)                       :: wd1                    
+  real(r8)                       :: wd2                    
+  real(r8)                       :: dzfine                 
+  real(r8)                       :: temp                   
+  real(r8)  , dimension(1:nfine) :: zfine 
+
+   wd1 = 0.
+   do k = 1,nsoil
+     wd1 = wd1 + (parameters%smcmax(k)-sh2o(k)) * dzsnso(k) 
+   enddo
+
+   dzfine = 3.0 * (-zsoil(nsoil)) / nfine  
+   do k =1,nfine
+      zfine(k) = float(k) * dzfine
+   enddo
+
+   zwt = -3.*zsoil(nsoil) - 0.001   
+
+   wd2 = 0.
+   do k = 1,nfine
+     temp  = 1. + (zwt-zfine(k))/parameters%psisat(k)
+     wd2   = wd2 + parameters%smcmax(k)*(1.-temp**(-1./parameters%bexp(k)))*dzfine
+     if(abs(wd2-wd1).le.0.01) then
+        zwt = zfine(k)
+        exit
+     endif
+   enddo
+
+  end subroutine zwteq
+
+
+
+  subroutine infil (parameters,nsoil  ,dt     ,zsoil  ,sh2o   ,sice   , & 
+                    sicemax,qinsur ,                         & 
+                    pddum  ,runsrf )                           
+
+    implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer,                  intent(in) :: nsoil  
+  real(r8)  ,                     intent(in) :: dt     
+  real(r8)  , dimension(1:nsoil), intent(in) :: zsoil  
+  real(r8)  , dimension(1:nsoil), intent(in) :: sh2o   
+  real(r8)  , dimension(1:nsoil), intent(in) :: sice   
+  real(r8)  ,                     intent(in) :: qinsur 
+  real(r8)  ,                     intent(in) :: sicemax
+  real(r8)  ,                    intent(out) :: runsrf 
+  real(r8)  ,                    intent(out) :: pddum  
+  integer :: ialp1, j, jj,  k
+  real(r8)                      :: val
+  real(r8)                      :: ddt
+  real(r8)                      :: px
+  real(r8)                      :: dt1, dd, dice
+  real(r8)                      :: fcr
+  real(r8)                      :: sum
+  real(r8)                      :: acrt
+  real(r8)                      :: wdf
+  real(r8)                      :: wcnd
+  real(r8)                      :: smcav
+  real(r8)                      :: infmax
+  real(r8)  , dimension(1:nsoil) :: dmax
+  integer, parameter       :: cvfrz = 3
+
+
+    if (qinsur >  0.0) then
+       dt1 = dt /86400.
+       smcav = parameters%smcmax(1) - parameters%smcwlt(1)
+       dmax(1)= -zsoil(1) * smcav
+       dice   = -zsoil(1) * sice(1)
+       dmax(1)= dmax(1)* (1.0-(sh2o(1) + sice(1) - parameters%smcwlt(1))/smcav)
+
+       dd = dmax(1)
+       do k = 2,nsoil
+          dice    = dice + (zsoil(k-1) - zsoil(k) ) * sice(k)
+          dmax(k) = (zsoil(k-1) - zsoil(k)) * smcav
+          dmax(k) = dmax(k) * (1.0-(sh2o(k) + sice(k) - parameters%smcwlt(k))/smcav)
+          dd      = dd + dmax(k)
+       end do
+
+       val = (1. - exp ( - parameters%kdt * dt1))
+       ddt = dd * val
+       px  = max(0.,qinsur * dt)
+       infmax = (px * (ddt / (px + ddt)))/ dt
+
+       fcr = 1.
+       if (dice >  1.e-2) then
+          acrt = cvfrz * parameters%frzx / dice
+          sum = 1.
+          ialp1 = cvfrz - 1
+          do j = 1,ialp1
+             k = 1
+             do jj = j +1,ialp1
+                k = k * jj
+             end do
+             sum = sum + (acrt ** (cvfrz - j)) / float(k)
+          end do
+          fcr = 1. - exp (-acrt) * sum
+       end if
+
+       infmax = infmax * fcr
+
+       call wdfcnd2 (parameters,wdf,wcnd,sh2o(1),sicemax,1)
+       infmax = max (infmax,wcnd)
+       infmax = min (infmax,px)
+
+       runsrf= max(0., qinsur - infmax)
+       pddum = qinsur - runsrf
+
+    end if
+
+  end subroutine infil
+
+
+
+  subroutine srt (parameters,nsoil  ,zsoil  ,dt     ,pddum  ,etrani , & 
+                  qseva  ,sh2o   ,smc    ,zwt    ,fcr    , & 
+                  sicemax,fcrmax ,iloc   ,jloc   ,smcwtd ,         & 
+                  rhstt  ,ai     ,bi     ,ci     ,qdrain , & 
+                  wcnd   )                                   
+
+    implicit none
+
+    type (noahmp_parameters), intent(in) :: parameters
+    integer,                  intent(in)  :: iloc   
+    integer,                  intent(in)  :: jloc   
+    integer,                  intent(in)  :: nsoil
+    real(r8)  , dimension(1:nsoil), intent(in)  :: zsoil
+    real(r8)  ,                     intent(in)  :: dt
+    real(r8)  ,                     intent(in)  :: pddum
+    real(r8)  ,                     intent(in)  :: qseva
+    real(r8)  , dimension(1:nsoil), intent(in)  :: etrani
+    real(r8)  , dimension(1:nsoil), intent(in)  :: sh2o
+    real(r8)  , dimension(1:nsoil), intent(in)  :: smc
+    real(r8)  ,                     intent(in)  :: zwt    
+    real(r8)  , dimension(1:nsoil), intent(in)  :: fcr
+    real(r8)  , intent(in)                      :: fcrmax 
+    real(r8)  ,                     intent(in)  :: sicemax
+    real(r8)  ,                     intent(in)  :: smcwtd 
+
+    real(r8)  , dimension(1:nsoil), intent(out) :: rhstt
+    real(r8)  , dimension(1:nsoil), intent(out) :: ai
+    real(r8)  , dimension(1:nsoil), intent(out) :: bi
+    real(r8)  , dimension(1:nsoil), intent(out) :: ci
+    real(r8)  , dimension(1:nsoil), intent(out) :: wcnd    
+    real(r8)  ,                     intent(out) :: qdrain  
+
+
+    integer                               :: k
+    real(r8)  , dimension(1:nsoil)              :: ddz
+    real(r8)  , dimension(1:nsoil)              :: denom
+    real(r8)  , dimension(1:nsoil)              :: dsmdz
+    real(r8)  , dimension(1:nsoil)              :: wflux
+    real(r8)  , dimension(1:nsoil)              :: wdf
+    real(r8)  , dimension(1:nsoil)              :: smx
+    real(r8)                           :: temp1
+    real(r8)                           :: smxwtd 
+    real(r8)                           :: smxbot  
+
+
+
+
+    if(opt_inf == 1) then
+      do k = 1, nsoil
+        call wdfcnd1 (parameters,wdf(k),wcnd(k),smc(k),fcr(k),k)
+        smx(k) = smc(k)
+      end do
+        if(opt_run == 5)smxwtd=smcwtd
+    end if
+
+    if(opt_inf == 2) then
+      do k = 1, nsoil
+        call wdfcnd2 (parameters,wdf(k),wcnd(k),sh2o(k),sicemax,k)
+        smx(k) = sh2o(k)
+      end do
+          if(opt_run == 5)smxwtd=smcwtd*sh2o(nsoil)/smc(nsoil)  
+    end if
+
+    do k = 1, nsoil
+       if(k == 1) then
+          denom(k) = - zsoil (k)
+          temp1    = - zsoil (k+1)
+          ddz(k)   = 2.0 / temp1
+          dsmdz(k) = 2.0 * (smx(k) - smx(k+1)) / temp1
+          wflux(k) = wdf(k) * dsmdz(k) + wcnd(k) - pddum + etrani(k) + qseva
+       else if (k < nsoil) then
+          denom(k) = (zsoil(k-1) - zsoil(k))
+          temp1    = (zsoil(k-1) - zsoil(k+1))
+          ddz(k)   = 2.0 / temp1
+          dsmdz(k) = 2.0 * (smx(k) - smx(k+1)) / temp1
+          wflux(k) = wdf(k  ) * dsmdz(k  ) + wcnd(k  )         &
+                   - wdf(k-1) * dsmdz(k-1) - wcnd(k-1) + etrani(k)
+       else
+          denom(k) = (zsoil(k-1) - zsoil(k))
+          if(opt_run == 1 .or. opt_run == 2) then
+             qdrain   = 0.
+          end if
+          if(opt_run == 3) then
+             qdrain   = parameters%slope*wcnd(k)
+          end if
+          if(opt_run == 4) then
+             qdrain   = (1.0-fcrmax)*wcnd(k)
+          end if
+          if(opt_run == 5) then   
+             temp1    = 2.0 * denom(k)
+             if(zwt < zsoil(nsoil)-denom(nsoil))then
+
+                smxbot = smx(k) - (smx(k)-smxwtd) *  denom(k) * 2./ (denom(k) + zsoil(k) - zwt)
+             else
+                smxbot = smxwtd
+             endif
+             dsmdz(k) = 2.0 * (smx(k) - smxbot) / temp1
+             qdrain   = wdf(k  ) * dsmdz(k  ) + wcnd(k  )
+          end if   
+          wflux(k) = -(wdf(k-1)*dsmdz(k-1))-wcnd(k-1)+etrani(k) + qdrain
+       end if
+    end do
+
+    do k = 1, nsoil
+       if(k == 1) then
+          ai(k)    =   0.0
+          bi(k)    =   wdf(k  ) * ddz(k  ) / denom(k)
+          ci(k)    = - bi (k)
+       else if (k < nsoil) then
+          ai(k)    = - wdf(k-1) * ddz(k-1) / denom(k)
+          ci(k)    = - wdf(k  ) * ddz(k  ) / denom(k)
+          bi(k)    = - ( ai (k) + ci (k) )
+       else
+          ai(k)    = - wdf(k-1) * ddz(k-1) / denom(k)
+          ci(k)    = 0.0
+          bi(k)    = - ( ai (k) + ci (k) )
+       end if
+          rhstt(k) = wflux(k) / (-denom(k))
+    end do
+
+
+  end subroutine srt
+
+
+
+  subroutine sstep (parameters,nsoil  ,nsnow  ,dt     ,zsoil  ,dzsnso , & 
+                    sice   ,iloc   ,jloc   ,zwt            ,                 & 
+                    sh2o   ,smc    ,ai     ,bi     ,ci     , & 
+                    rhstt  ,smcwtd ,qdrain ,deeprech,                                 & 
+                    wplus  )                                   
+
+    implicit none
+
+    type (noahmp_parameters), intent(in) :: parameters
+    integer,                         intent(in) :: iloc   
+    integer,                         intent(in) :: jloc   
+    integer,                         intent(in) :: nsoil  
+    integer,                         intent(in) :: nsnow  
+    real(r8)  , intent(in)                            :: dt
+    real(r8)  , intent(in)                            :: zwt
+    real(r8)  , dimension(       1:nsoil), intent(in) :: zsoil
+    real(r8)  , dimension(       1:nsoil), intent(in) :: sice
+    real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: dzsnso 
+
+
+    real(r8)  , dimension(1:nsoil), intent(inout) :: sh2o
+    real(r8)  , dimension(1:nsoil), intent(inout) :: smc
+    real(r8)  , dimension(1:nsoil), intent(inout) :: ai
+    real(r8)  , dimension(1:nsoil), intent(inout) :: bi
+    real(r8)  , dimension(1:nsoil), intent(inout) :: ci
+    real(r8)  , dimension(1:nsoil), intent(inout) :: rhstt
+    real(r8)                     , intent(inout) :: smcwtd
+    real(r8)                     , intent(inout) :: qdrain
+    real(r8)                     , intent(inout) :: deeprech
+
+
+    real(r8)  , intent(out)                       :: wplus     
+
+
+    integer                                 :: k
+    real(r8)  , dimension(1:nsoil)                :: rhsttin
+    real(r8)  , dimension(1:nsoil)                :: ciin
+    real(r8)                                     :: stot
+    real(r8)                                     :: epore
+    real(r8)                                     :: wminus
+
+    wplus = 0.0
+
+    do k = 1,nsoil
+       rhstt (k) =   rhstt(k) * dt
+       ai (k)    =      ai(k) * dt
+       bi (k)    = 1. + bi(k) * dt
+       ci (k)    =      ci(k) * dt
+    end do
+
+    do k = 1,nsoil
+       rhsttin(k) = rhstt(k)
+       ciin(k)    = ci(k)
+    end do
+
+    call rosr12 (ci,ai,bi,ciin,rhsttin,rhstt,1,nsoil,0)
+
+    do k = 1,nsoil
+        sh2o(k) = sh2o(k) + ci(k)
+    enddo
+
+
+  if(opt_run == 5) then
+
+
+
+     if(zwt < zsoil(nsoil)-dzsnso(nsoil))then
+
+        deeprech =  deeprech + dt * qdrain
+     else
+        smcwtd = smcwtd + dt * qdrain  / dzsnso(nsoil)
+        wplus        = max((smcwtd-parameters%smcmax(nsoil)), 0.0) * dzsnso(nsoil)
+        wminus       = max((1.e-4-smcwtd), 0.0) * dzsnso(nsoil)
+
+        smcwtd = max( min(smcwtd,parameters%smcmax(nsoil)) , 1.e-4)
+        sh2o(nsoil)    = sh2o(nsoil) + wplus/dzsnso(nsoil)
+
+
+        qdrain = qdrain - wplus/dt
+        deeprech = deeprech - wminus
+     endif
+
+  endif
+
+    do k = nsoil,2,-1
+      epore        = max ( 1.e-4 , ( parameters%smcmax(k) - sice(k) ) )
+      wplus        = max((sh2o(k)-epore), 0.0) * dzsnso(k)
+      sh2o(k)      = min(epore,sh2o(k))
+      sh2o(k-1)    = sh2o(k-1) + wplus/dzsnso(k-1)
+    end do
+
+    epore        = max ( 1.e-4 , ( parameters%smcmax(1) - sice(1) ) )
+    wplus        = max((sh2o(1)-epore), 0.0) * dzsnso(1) 
+    sh2o(1)      = min(epore,sh2o(1))
+
+  end subroutine sstep
+
+
+
+  subroutine wdfcnd1 (parameters,wdf,wcnd,smc,fcr,isoil)
+    implicit none
+
+    type (noahmp_parameters), intent(in) :: parameters
+    real(r8)  ,intent(in)  :: smc
+    real(r8)  ,intent(in)  :: fcr
+    integer,intent(in)  :: isoil
+    real(r8)  ,intent(out) :: wcnd
+    real(r8)  ,intent(out) :: wdf
+    real(r8)            :: expon
+    real(r8)            :: factr
+    real(r8)            :: vkwgt
+
+    factr = max(0.01, smc/parameters%smcmax(isoil))
+    expon = parameters%bexp(isoil) + 2.0
+    wdf   = parameters%dwsat(isoil) * factr ** expon
+    wdf   = wdf * (1.0 - fcr)
+
+    expon = 2.0*parameters%bexp(isoil) + 3.0
+    wcnd  = parameters%dksat(isoil) * factr ** expon
+    wcnd  = wcnd * (1.0 - fcr)
+
+  end subroutine wdfcnd1
+
+
+
+  subroutine wdfcnd2 (parameters,wdf,wcnd,smc,sice,isoil)
+    implicit none
+
+    type (noahmp_parameters), intent(in) :: parameters
+    real(r8)  ,intent(in)  :: smc
+    real(r8)  ,intent(in)  :: sice
+    integer,intent(in)  :: isoil
+    real(r8)  ,intent(out) :: wcnd
+    real(r8)  ,intent(out) :: wdf
+    real(r8)            :: expon
+    real(r8)            :: factr
+    real(r8)            :: vkwgt
+
+
+
+    factr = max(0.01, smc/parameters%smcmax(isoil))
+    expon = parameters%bexp(isoil) + 2.0
+    wdf   = parameters%dwsat(isoil) * factr ** expon
+
+    if (sice > 0.0) then
+    vkwgt = 1./ (1. + (500.* sice)**3.)
+    wdf   = vkwgt * wdf + (1.-vkwgt)*parameters%dwsat(isoil)*(0.2/parameters%smcmax(isoil))**expon
+    end if
+
+    expon = 2.0*parameters%bexp(isoil) + 3.0
+    wcnd  = parameters%dksat(isoil) * factr ** expon
+
+  end subroutine wdfcnd2
+
+
+
+  subroutine groundwater(parameters,nsnow  ,nsoil  ,dt     ,sice   ,zsoil  , & 
+                         stc    ,wcnd   ,fcrmax ,iloc   ,jloc   , & 
+                         sh2o   ,zwt    ,wa     ,wt     ,         & 
+                         qin    ,qdis   )                           
+  implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer,                         intent(in) :: iloc  
+  integer,                         intent(in) :: jloc  
+  integer,                         intent(in) :: nsnow 
+  integer,                         intent(in) :: nsoil 
+  real(r8)  ,                            intent(in) :: dt    
+  real(r8)  ,                            intent(in) :: fcrmax
+  real(r8)  , dimension(       1:nsoil), intent(in) :: sice  
+  real(r8)  , dimension(       1:nsoil), intent(in) :: zsoil 
+  real(r8)  , dimension(       1:nsoil), intent(in) :: wcnd  
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: stc   
+  real(r8)  , dimension(    1:nsoil), intent(inout) :: sh2o  
+  real(r8)  ,                         intent(inout) :: zwt   
+  real(r8)  ,                         intent(inout) :: wa    
+  real(r8)  ,                         intent(inout) :: wt    
+  real(r8)  ,                           intent(out) :: qin   
+  real(r8)  ,                           intent(out) :: qdis  
+  real(r8)                                   :: fff   
+  real(r8)                                   :: rsbmx 
+  integer                                     :: iz    
+  integer                                     :: iwt   
+  real(r8)  ,  dimension(    1:nsoil)               :: dzmm  
+  real(r8)  ,  dimension(    1:nsoil)               :: znode 
+  real(r8)  ,  dimension(    1:nsoil)               :: mliq  
+  real(r8)  ,  dimension(    1:nsoil)               :: epore 
+  real(r8)  ,  dimension(    1:nsoil)               :: hk    
+  real(r8)  ,  dimension(    1:nsoil)               :: smc   
+  real(kind=8)                                :: s_node
+  real(r8)                                   :: dzsum 
+  real(r8)                                   :: smpfz 
+  real(r8)                                   :: ka    
+  real(r8)                                   :: wh_zwt
+  real(r8)                                   :: wh    
+  real(r8)                                   :: ws    
+  real(r8)                                   :: wtsub 
+  real(r8)                                   :: watmin
+  real(r8)                                   :: xs    
+  real(r8)  , parameter                             :: rous = 0.2    
+  real(r8)  , parameter                             :: cmic = 0.20   
+                                                               
+
+      qdis      = 0.0
+      qin       = 0.0
+
+      dzmm(1) = -zsoil(1)*1.e3
+      do iz = 2, nsoil
+         dzmm(iz)  = 1.e3 * (zsoil(iz - 1) - zsoil(iz))
+      enddo
+
+      znode(1) = -zsoil(1) / 2.
+      do iz = 2, nsoil
+         znode(iz)  = -zsoil(iz-1) + 0.5 * (zsoil(iz-1) - zsoil(iz))
+      enddo
+
+      do iz = 1, nsoil
+         smc(iz)      = sh2o(iz) + sice(iz)
+         mliq(iz)     = sh2o(iz) * dzmm(iz)
+         epore(iz)    = max(0.01,parameters%smcmax(iz) - sice(iz))
+         hk(iz)       = 1.e3*wcnd(iz)
+      enddo
+
+
+      iwt = nsoil
+      do iz = 2,nsoil
+         if(zwt   .le. -zsoil(iz) ) then
+            iwt = iz-1
+            exit
+         end if
+      enddo
+
+      fff   = 6.0
+      rsbmx = 5.0
+      qdis = (1.0-fcrmax)*rsbmx*exp(-parameters%timean)*exp(-fff*(zwt-2.0))
+      s_node = min(1.0,smc(iwt)/parameters%smcmax(iwt) )
+      s_node = max(s_node,real(0.01,kind=8))
+      smpfz  = -parameters%psisat(iwt)*1000.*s_node**(-parameters%bexp(iwt))   
+      smpfz  = max(-120000.0,cmic*smpfz)   
+
+      ka  = hk(iwt)
+      wh_zwt  = - zwt * 1.e3                          
+      wh      = smpfz  - znode(iwt)*1.e3              
+      qin     = - ka * (wh_zwt-wh)  /((zwt-znode(iwt))*1.e3)
+      qin     = max(-10.0/dt,min(10./dt,qin))
+   
+      wt  = wt + (qin - qdis) * dt     
+
+      if(iwt.eq.nsoil) then
+         wa          = wa + (qin - qdis) * dt     
+         wt          = wa
+         zwt         = (-zsoil(nsoil) + 25.) - wa/1000./rous      
+         mliq(nsoil) = mliq(nsoil) - qin * dt        
+
+         mliq(nsoil) = mliq(nsoil) + max(0.,(wa - 5000.))
+         wa          = min(wa, 5000.)
+      else
+         
+         if (iwt.eq.nsoil-1) then
+            zwt = -zsoil(nsoil)                   &
+                 - (wt-rous*1000*25.) / (epore(nsoil))/1000.
+         else
+            ws = 0.   
+            do iz = iwt+2,nsoil
+               ws = ws + epore(iz) * dzmm(iz)
+            enddo
+            zwt = -zsoil(iwt+1)                  &
+                  - (wt-rous*1000.*25.-ws) /(epore(iwt+1))/1000.
+         endif
+
+         wtsub = 0.
+         do iz = 1, nsoil
+           wtsub = wtsub + hk(iz)*dzmm(iz)
+         end do
+
+         do iz = 1, nsoil           
+         mliq(iz) = mliq(iz) - qdis*dt*hk(iz)*dzmm(iz)/wtsub
+         end do
+      end if
+
+      zwt = max(1.5,zwt)
+
+      watmin = 0.01
+      do iz = 1, nsoil-1
+          if (mliq(iz) .lt. 0.) then
+             xs = watmin-mliq(iz)
+          else
+             xs = 0.
+          end if
+          mliq(iz  ) = mliq(iz  ) + xs
+          mliq(iz+1) = mliq(iz+1) - xs
+      end do
+
+        iz = nsoil
+        if (mliq(iz) .lt. watmin) then
+           xs = watmin-mliq(iz)
+        else
+           xs = 0.
+        end if
+        mliq(iz) = mliq(iz) + xs
+        wa       = wa - xs
+        wt       = wt - xs
+
+      do iz = 1, nsoil
+        sh2o(iz)     = mliq(iz) / dzmm(iz)
+      end do
+
+  end subroutine groundwater
+
+
+
+  subroutine shallowwatertable (parameters,nsnow  ,nsoil  ,zsoil, dt    , & 
+                         dzsnso ,smceq ,iloc   ,jloc         , & 
+                         smc    ,wtd   ,smcwtd ,rech, qdrain  )  
+
+  implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer,                         intent(in) :: nsnow 
+  integer,                         intent(in) :: nsoil 
+  integer,                         intent(in) :: iloc,jloc
+  real(r8)  ,                            intent(in) :: dt
+  real(r8)  , dimension(       1:nsoil), intent(in) :: zsoil 
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: dzsnso 
+  real(r8)  ,  dimension(      1:nsoil), intent(in) :: smceq  
+  real(r8)  ,  dimension(      1:nsoil), intent(inout) :: smc   
+  real(r8)  ,                         intent(inout) :: wtd   
+  real(r8)  ,                         intent(inout) :: smcwtd   
+  real(r8)  ,                         intent(out) :: rech 
+  real(r8)  ,                         intent(inout) :: qdrain
+  integer                                     :: iz    
+  integer                                     :: iwtd   
+  integer                                     :: kwtd   
+  real(r8)                                   :: wtdold
+  real(r8)                                   :: dzup
+  real(r8)                                   :: smceqdeep
+  real(r8)  ,  dimension(       0:nsoil)            :: zsoil0
+
+
+zsoil0(1:nsoil) = zsoil(1:nsoil)
+zsoil0(0) = 0.         
+ 
+
+     do iz=nsoil,1,-1
+        if(wtd + 1.e-6 < zsoil0(iz)) exit
+     enddo
+        iwtd=iz
+        
+        kwtd=iwtd+1  
+        if(kwtd.le.nsoil)then    
+           wtdold=wtd
+           if(smc(kwtd).gt.smceq(kwtd))then
+        
+               if(smc(kwtd).eq.parameters%smcmax(kwtd))then 
+                      wtd=zsoil0(iwtd)
+                      rech=-(wtdold-wtd) * (parameters%smcmax(kwtd)-smceq(kwtd))
+                      iwtd=iwtd-1
+                      kwtd=kwtd-1
+                   if(kwtd.ge.1)then
+                      if(smc(kwtd).gt.smceq(kwtd))then
+                      wtdold=wtd
+                      wtd = min( ( smc(kwtd)*dzsnso(kwtd) &
+                        - smceq(kwtd)*zsoil0(iwtd) + parameters%smcmax(kwtd)*zsoil0(kwtd) ) / &
+                        ( parameters%smcmax(kwtd)-smceq(kwtd) ), zsoil0(iwtd))
+                      rech=rech-(wtdold-wtd) * (parameters%smcmax(kwtd)-smceq(kwtd))
+                      endif
+                   endif
+               else  
+                      wtd = min( ( smc(kwtd)*dzsnso(kwtd) &
+                        - smceq(kwtd)*zsoil0(iwtd) + parameters%smcmax(kwtd)*zsoil0(kwtd) ) / &
+                        ( parameters%smcmax(kwtd)-smceq(kwtd) ), zsoil0(iwtd))
+                      rech=-(wtdold-wtd) * (parameters%smcmax(kwtd)-smceq(kwtd))
+               endif
+           
+           else    
+               wtd=zsoil0(kwtd)
+               rech=-(wtdold-wtd) * (parameters%smcmax(kwtd)-smceq(kwtd))
+               kwtd=kwtd+1
+               iwtd=iwtd+1
+
+               if(kwtd.le.nsoil)then
+                   wtdold=wtd
+                   if(smc(kwtd).gt.smceq(kwtd))then
+                   wtd = min( ( smc(kwtd)*dzsnso(kwtd) &
+                   - smceq(kwtd)*zsoil0(iwtd) + parameters%smcmax(kwtd)*zsoil0(kwtd) ) / &
+                       ( parameters%smcmax(kwtd)-smceq(kwtd) ) , zsoil0(iwtd) )
+                   else
+                   wtd=zsoil0(kwtd)
+                   endif
+                   rech = rech - (wtdold-wtd) * &
+                                 (parameters%smcmax(kwtd)-smceq(kwtd))
+
+                else
+                   wtdold=wtd
+
+                   smceqdeep = parameters%smcmax(nsoil) * ( -parameters%psisat(nsoil) / ( -parameters%psisat(nsoil) - dzsnso(nsoil) ) ) ** (1./parameters%bexp(nsoil))
+                   wtd = min( ( smcwtd*dzsnso(nsoil) &
+                   - smceqdeep*zsoil0(nsoil) + parameters%smcmax(nsoil)*(zsoil0(nsoil)-dzsnso(nsoil)) ) / &
+                       ( parameters%smcmax(nsoil)-smceqdeep ) , zsoil0(nsoil) )
+                   rech = rech - (wtdold-wtd) * &
+                                 (parameters%smcmax(nsoil)-smceqdeep)
+                endif
+            
+            endif
+        elseif(wtd.ge.zsoil0(nsoil)-dzsnso(nsoil))then
+
+           wtdold=wtd
+           smceqdeep = parameters%smcmax(nsoil) * ( -parameters%psisat(nsoil) / ( -parameters%psisat(nsoil) - dzsnso(nsoil) ) ) ** (1./parameters%bexp(nsoil))
+           if(smcwtd.gt.smceqdeep)then
+               wtd = min( ( smcwtd*dzsnso(nsoil) &
+                 - smceqdeep*zsoil0(nsoil) + parameters%smcmax(nsoil)*(zsoil0(nsoil)-dzsnso(nsoil)) ) / &
+                     ( parameters%smcmax(nsoil)-smceqdeep ) , zsoil0(nsoil) )
+               rech = -(wtdold-wtd) * (parameters%smcmax(nsoil)-smceqdeep)
+           else
+               rech = -(wtdold-(zsoil0(nsoil)-dzsnso(nsoil))) * (parameters%smcmax(nsoil)-smceqdeep)
+               wtdold=zsoil0(nsoil)-dzsnso(nsoil)
+
+               dzup=(smceqdeep-smcwtd)*dzsnso(nsoil)/(parameters%smcmax(nsoil)-smceqdeep)
+               wtd=wtdold-dzup
+               rech = rech - (parameters%smcmax(nsoil)-smceqdeep)*dzup
+               smcwtd=smceqdeep
+           endif
+
+         
+         endif
+
+if(iwtd.lt.nsoil .and. iwtd.gt.0) then
+  smcwtd=parameters%smcmax(iwtd)
+elseif(iwtd.lt.nsoil .and. iwtd.le.0) then
+  smcwtd=parameters%smcmax(1)
+end if
+
+end  subroutine shallowwatertable
+
+
+
+
+
+
+
+  subroutine carbon (parameters,nsnow  ,nsoil  ,vegtyp ,dt     ,zsoil  , & 
+                     dzsnso ,stc    ,smc    ,tv     ,tg     ,psn    , & 
+                     foln   ,btran  ,apar   ,fveg   ,igs    , & 
+                     troot  ,ist    ,lat    ,iloc   ,jloc   , & 
+                     lfmass ,rtmass ,stmass ,wood   ,stblcp ,fastcp , & 
+                     gpp    ,npp    ,nee    ,autors ,heters ,totsc  , & 
+                     totlb  ,xlai   ,xsai   )                   
+
+      implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer                        , intent(in) :: iloc   
+  integer                        , intent(in) :: jloc   
+  integer                        , intent(in) :: vegtyp 
+  integer                        , intent(in) :: nsnow  
+  integer                        , intent(in) :: nsoil  
+  real(r8)                    , intent(in) :: lat    
+  real(r8)                    , intent(in) :: dt     
+  real(r8)  , dimension(       1:nsoil), intent(in) :: zsoil  
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: dzsnso 
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: stc    
+  real(r8)  , dimension(       1:nsoil), intent(in) :: smc    
+  real(r8)                    , intent(in) :: tv     
+  real(r8)                    , intent(in) :: tg     
+  real(r8)                    , intent(in) :: foln   
+  real(r8)                    , intent(in) :: btran  
+  real(r8)                    , intent(in) :: psn    
+  real(r8)                    , intent(in) :: apar   
+  real(r8)                    , intent(in) :: igs    
+  real(r8)                    , intent(in) :: fveg   
+  real(r8)                    , intent(in) :: troot  
+  integer                        , intent(in) :: ist    
+  real(r8)                   , intent(inout) :: lfmass 
+  real(r8)                   , intent(inout) :: rtmass 
+  real(r8)                   , intent(inout) :: stmass 
+  real(r8)                   , intent(inout) :: wood   
+  real(r8)                   , intent(inout) :: stblcp 
+  real(r8)                   , intent(inout) :: fastcp 
+  real(r8)                   , intent(out) :: gpp    
+  real(r8)                   , intent(out) :: npp    
+  real(r8)                   , intent(out) :: nee    
+  real(r8)                   , intent(out) :: autors 
+  real(r8)                   , intent(out) :: heters 
+  real(r8)                   , intent(out) :: totsc  
+  real(r8)                   , intent(out) :: totlb  
+  real(r8)                   , intent(out) :: xlai   
+  real(r8)                   , intent(out) :: xsai   
+
+  integer :: j         
+  real(r8)                       :: wroot     
+  real(r8)                       :: wstres    
+  real(r8)                       :: lapm      
+
+
+   if ( ( vegtyp == parameters%iswater ) .or. ( vegtyp == parameters%isbarren ) .or. &
+        ( vegtyp == parameters%isice ) .or. (parameters%urban_flag) ) then
+      xlai   = 0.
+      xsai   = 0.
+      gpp    = 0.
+      npp    = 0.
+      nee    = 0.
+      autors = 0.
+      heters = 0.
+      totsc  = 0.
+      totlb  = 0.
+      lfmass = 0.
+      rtmass = 0.
+      stmass = 0.
+      wood   = 0.
+      stblcp = 0.
+      fastcp = 0.
+
+      return
+   end if
+
+      lapm       = parameters%sla / 1000.   
+
+
+
+      wstres  = 1.- btran
+
+      wroot  = 0.
+      do j=1,parameters%nroot
+        wroot = wroot + smc(j)/parameters%smcmax(j) *  dzsnso(j) / (-zsoil(parameters%nroot))
+      enddo
+
+  call co2flux (parameters,nsnow  ,nsoil  ,vegtyp ,igs    ,dt     , & 
+                dzsnso ,stc    ,psn    ,troot  ,tv     , & 
+                wroot  ,wstres ,foln   ,lapm   ,         & 
+                lat    ,iloc   ,jloc   ,fveg   ,         & 
+                xlai   ,xsai   ,lfmass ,rtmass ,stmass , & 
+                fastcp ,stblcp ,wood   ,                 & 
+                gpp    ,npp    ,nee    ,autors ,heters , & 
+                totsc  ,totlb  )                           
+
+
+  end subroutine carbon
+
+
+
+  subroutine co2flux (parameters,nsnow  ,nsoil  ,vegtyp ,igs    ,dt     , & 
+                      dzsnso ,stc    ,psn    ,troot  ,tv     , & 
+                      wroot  ,wstres ,foln   ,lapm   ,         & 
+                      lat    ,iloc   ,jloc   ,fveg   ,         & 
+                      xlai   ,xsai   ,lfmass ,rtmass ,stmass , & 
+                      fastcp ,stblcp ,wood   ,                 & 
+                      gpp    ,npp    ,nee    ,autors ,heters , & 
+                      totsc  ,totlb  )                           
+
+  implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer                        , intent(in) :: iloc   
+  integer                        , intent(in) :: jloc   
+  integer                        , intent(in) :: vegtyp 
+  integer                        , intent(in) :: nsnow  
+  integer                        , intent(in) :: nsoil  
+  real(r8)                    , intent(in) :: dt     
+  real(r8)                    , intent(in) :: lat    
+  real(r8)                    , intent(in) :: igs    
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: dzsnso 
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: stc    
+  real(r8)                    , intent(in) :: psn    
+  real(r8)                    , intent(in) :: troot  
+  real(r8)                    , intent(in) :: tv     
+  real(r8)                    , intent(in) :: wroot  
+  real(r8)                    , intent(in) :: wstres 
+  real(r8)                    , intent(in) :: foln   
+  real(r8)                    , intent(in) :: lapm   
+  real(r8)                    , intent(in) :: fveg   
+  real(r8)                   , intent(inout) :: xlai   
+  real(r8)                   , intent(inout) :: xsai   
+  real(r8)                   , intent(inout) :: lfmass 
+  real(r8)                   , intent(inout) :: rtmass 
+  real(r8)                   , intent(inout) :: stmass 
+  real(r8)                   , intent(inout) :: fastcp 
+  real(r8)                   , intent(inout) :: stblcp 
+  real(r8)                   , intent(inout) :: wood   
+  real(r8)                   , intent(out) :: gpp    
+  real(r8)                   , intent(out) :: npp    
+  real(r8)                   , intent(out) :: nee    
+  real(r8)                   , intent(out) :: autors 
+  real(r8)                   , intent(out) :: heters 
+  real(r8)                   , intent(out) :: totsc  
+  real(r8)                   , intent(out) :: totlb  
+
+  real(r8)                    :: cflux    
+  real(r8)                    :: lfmsmn   
+  real(r8)                    :: rswood   
+  real(r8)                    :: rsleaf   
+  real(r8)                    :: rsroot   
+  real(r8)                    :: nppl     
+  real(r8)                    :: nppr     
+  real(r8)                    :: nppw     
+  real(r8)                    :: npps     
+  real(r8)                    :: dielf    
+
+  real(r8)                    :: addnpplf 
+  real(r8)                    :: addnppst 
+  real(r8)                    :: carbfx   
+  real(r8)                    :: grleaf   
+  real(r8)                    :: grroot   
+  real(r8)                    :: grwood   
+  real(r8)                    :: grstem   
+  real(r8)                    :: leafpt   
+  real(r8)                    :: lfdel    
+  real(r8)                    :: lftovr   
+  real(r8)                    :: sttovr   
+  real(r8)                    :: wdtovr   
+  real(r8)                    :: rssoil   
+  real(r8)                    :: rttovr   
+  real(r8)                    :: stablc   
+  real(r8)                    :: woodf    
+  real(r8)                    :: nonlef   
+  real(r8)                    :: rootpt   
+  real(r8)                    :: woodpt   
+  real(r8)                    :: stempt   
+  real(r8)                    :: resp     
+  real(r8)                    :: rsstem   
+
+  real(r8)                    :: fsw      
+  real(r8)                    :: fst      
+  real(r8)                    :: fnf      
+  real(r8)                    :: tf       
+  real(r8)                    :: rf       
+  real(r8)                    :: stdel
+  real(r8)                    :: stmsmn
+  real(r8)                    :: sapm     
+  real(r8)                    :: diest
+
+  real(r8)                    :: bf       
+  real(r8)                    :: rswoodc  
+  real(r8)                    :: stovrc   
+  real(r8)                    :: rsdryc   
+  real(r8)                    :: rtovrc   
+  real(r8)                    :: wstrc    
+  real(r8)                    :: laimin   
+  real(r8)                    :: xsamin   
+  real(r8)                    :: sc
+  real(r8)                    :: sd
+  real(r8)                    :: vegfrac
+  real(r8)            :: r,x
+          r(x) = exp(0.08*(x-298.16))
+
+    rtovrc  = 2.0e-8        
+    rsdryc  = 40.0          
+    rswoodc = 3.0e-10       
+    bf      = 0.90          
+    wstrc   = 100.0
+    laimin  = 0.05   
+    xsamin  = 0.05     
+    sapm    = 3.*0.001      
+    lfmsmn  = laimin/lapm
+    stmsmn  = xsamin/sapm
+
+
+     if(igs .eq. 0.) then
+       rf = 0.5
+     else
+       rf = 1.0
+     endif
+            
+     fnf     = min( foln/max(1.e-06,parameters%folnmx), 1.0 )
+     tf      = parameters%arm**( (tv-298.16)/10. )
+     resp    = parameters%rmf25 * tf * fnf * xlai * rf * (1.-wstres) 
+     rsleaf  = min((lfmass-lfmsmn)/dt,resp*12.e-6)                         
+     
+     rsroot  = parameters%rmr25*(rtmass*1e-3)*tf *rf* 12.e-6         
+     rsstem  = parameters%rms25*((stmass-stmsmn)*1e-3)*tf *rf* 12.e-6         
+     rswood  = rswoodc * r(tv) * wood*parameters%wdpool
+     carbfx  = psn * 12.e-6              
+
+     leafpt = exp(0.01*(1.-exp(0.75*xlai))*xlai)
+     if(vegtyp == parameters%eblforest) leafpt = exp(0.01*(1.-exp(0.50*xlai))*xlai)
+
+     nonlef = 1.0 - leafpt
+     stempt = xlai/10.0*leafpt
+     leafpt = leafpt - stempt
+
+
+     if(wood > 1.e-6) then
+        woodf = (1.-exp(-bf*(parameters%wrrat*rtmass/wood))/bf)*parameters%wdpool
+     else
+        woodf = parameters%wdpool
+     endif
+
+     rootpt = nonlef*(1.-woodf)
+     woodpt = nonlef*woodf
+     lftovr = parameters%ltovrc*5.e-7*lfmass
+     sttovr = parameters%ltovrc*5.e-7*stmass
+     rttovr = rtovrc*rtmass
+     wdtovr = 9.5e-10*wood
+
+     sc  = exp(-0.3*max(0.,tv-parameters%tdlef)) * (lfmass/120.) 
+     sd  = exp((wstres-1.)*wstrc)
+     dielf = lfmass*1.e-6*(parameters%dilefw * sd + parameters%dilefc*sc)
+     diest = stmass*1.e-6*(parameters%dilefw * sd + parameters%dilefc*sc)
+
+     grleaf = max(0.0,parameters%fragr*(leafpt*carbfx - rsleaf))
+     grstem = max(0.0,parameters%fragr*(stempt*carbfx - rsstem))
+     grroot = max(0.0,parameters%fragr*(rootpt*carbfx - rsroot))
+     grwood = max(0.0,parameters%fragr*(woodpt*carbfx - rswood))
+
+     addnpplf = max(0.,leafpt*carbfx - grleaf-rsleaf)
+     addnppst = max(0.,stempt*carbfx - grstem-rsstem)
+
+     if(tv.lt.parameters%tmin) addnpplf =0.
+     if(tv.lt.parameters%tmin) addnppst =0.
+
+     lfdel = (lfmass - lfmsmn)/dt
+     stdel = (stmass - stmsmn)/dt
+     dielf = min(dielf,lfdel+addnpplf-lftovr)
+     diest = min(diest,stdel+addnppst-sttovr)
+
+     nppl   = max(addnpplf,-lfdel)
+     npps   = max(addnppst,-stdel)
+     nppr   = rootpt*carbfx - rsroot - grroot
+     nppw   = woodpt*carbfx - rswood - grwood
+
+     lfmass = lfmass + (nppl-lftovr-dielf)*dt
+     stmass = stmass + (npps-sttovr-diest)*dt   
+     rtmass = rtmass + (nppr-rttovr)      *dt
+
+     if(rtmass.lt.0.0) then
+           rttovr = nppr
+           rtmass = 0.0
+     endif
+     wood = (wood+(nppw-wdtovr)*dt)*parameters%wdpool
+     fastcp = fastcp + (rttovr+lftovr+sttovr+wdtovr+dielf+diest)*dt  
+
+     fst = 2.0**( (stc(1)-283.16)/10. )
+     fsw = wroot / (0.20+wroot) * 0.23 / (0.23+wroot)
+     rssoil = fsw * fst * parameters%mrp* max(0.,fastcp*1.e-3)*12.e-6
+
+     stablc = 0.1*rssoil
+     fastcp = fastcp - (rssoil + stablc)*dt
+     stblcp = stblcp + stablc*dt
+
+     cflux  = - carbfx + rsleaf + rsroot + rswood + rsstem &  
+          + 0.9*rssoil + grleaf + grroot + grwood + grstem    
+
+     gpp    = carbfx                                             
+     npp    = nppl + nppw + nppr +npps                           
+     autors = rsroot + rswood  + rsleaf + rsstem + &             
+              grleaf + grroot + grwood + grstem                  
+     heters = 0.9*rssoil                                         
+     nee    = (autors + heters - gpp)*44./12.                    
+     totsc  = fastcp + stblcp                                    
+     totlb  = lfmass + rtmass +stmass + wood                     
+
+     xlai    = max(lfmass*lapm,laimin)
+     xsai    = max(stmass*sapm,xsamin)
+    
+  end subroutine co2flux
+
+
+ subroutine carbon_crop (parameters,nsnow  ,nsoil  ,vegtyp ,dt     ,zsoil  ,julian , & 
+                            dzsnso ,stc    ,smc    ,tv     ,psn    ,foln   ,btran  , & 
+                            soldn  ,t2m    ,                                         & 
+                            lfmass ,rtmass ,stmass ,wood   ,stblcp ,fastcp ,grain  , & 
+			    xlai   ,xsai   ,gdd    ,                                 & 
+                            gpp    ,npp    ,nee    ,autors ,heters ,totsc  ,totlb    ) 
+
+      implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+  integer                        , intent(in) :: nsnow  
+  integer                        , intent(in) :: nsoil  
+  integer                        , intent(in) :: vegtyp 
+  real(r8)                    , intent(in) :: dt     
+  real(r8)  , dimension(       1:nsoil), intent(in) :: zsoil  
+  real(r8)                    , intent(in) :: julian 
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: dzsnso 
+  real(r8)  , dimension(-nsnow+1:nsoil), intent(in) :: stc    
+  real(r8)  , dimension(       1:nsoil), intent(in) :: smc    
+  real(r8)                    , intent(in) :: tv     
+  real(r8)                    , intent(in) :: psn    
+  real(r8)                    , intent(in) :: foln   
+  real(r8)                    , intent(in) :: btran  
+  real(r8)                    , intent(in) :: soldn  
+  real(r8)                    , intent(in) :: t2m    
+  real(r8)                   , intent(inout) :: lfmass 
+  real(r8)                   , intent(inout) :: rtmass 
+  real(r8)                   , intent(inout) :: stmass 
+  real(r8)                   , intent(inout) :: wood   
+  real(r8)                   , intent(inout) :: stblcp 
+  real(r8)                   , intent(inout) :: fastcp 
+  real(r8)                   , intent(inout) :: grain  
+  real(r8)                   , intent(inout) :: xlai   
+  real(r8)                   , intent(inout) :: xsai   
+  real(r8)                   , intent(inout) :: gdd    
+  real(r8)                   , intent(out) :: gpp    
+  real(r8)                   , intent(out) :: npp    
+  real(r8)                   , intent(out) :: nee    
+  real(r8)                   , intent(out) :: autors 
+  real(r8)                   , intent(out) :: heters 
+  real(r8)                   , intent(out) :: totsc  
+  real(r8)                   , intent(out) :: totlb  
+  integer :: j         
+  real(r8)                       :: wroot     
+  real(r8)                       :: wstres    
+  integer :: ipa       
+  integer :: iha       
+  integer :: pgs       
+  real(r8)                       :: psncrop 
+
+
+   if ( ( vegtyp == parameters%iswater ) .or. ( vegtyp == parameters%isbarren ) .or. &
+        ( vegtyp == parameters%isice ) .or. (parameters%urban_flag) ) then
+      xlai   = 0.
+      xsai   = 0.
+      gpp    = 0.
+      npp    = 0.
+      nee    = 0.
+      autors = 0.
+      heters = 0.
+      totsc  = 0.
+      totlb  = 0.
+      lfmass = 0.
+      rtmass = 0.
+      stmass = 0.
+      wood   = 0.
+      stblcp = 0.
+      fastcp = 0.
+      grain  = 0.
+      return
+   end if
+
+   wstres  = 1.- btran
+   wroot  = 0.
+
+   do j=1,parameters%nroot
+     wroot = wroot + smc(j)/parameters%smcmax(j) *  dzsnso(j) / (-zsoil(parameters%nroot))
+   enddo
+
+   call psn_crop     ( parameters,                           & 
+                       soldn,   xlai,    t2m,                & 
+                       psncrop                             )   
+
+   call growing_gdd  (parameters,                           & 
+                      t2m ,   dt,  julian,                  & 
+                      gdd ,                                 & 
+                      ipa ,  iha,     pgs)                    
+
+   call co2flux_crop (parameters,                              & 
+                      dt     ,stc(1) ,psn    ,tv     ,wroot  ,wstres ,foln   , & 
+                      ipa    ,iha    ,pgs    ,                                 & 
+                      xlai   ,xsai   ,lfmass ,rtmass ,stmass ,                 & 
+                      fastcp ,stblcp ,wood   ,grain  ,gdd    ,                 & 
+                      gpp    ,npp    ,nee    ,autors ,heters ,                 & 
+                      totsc  ,totlb  )                                           
+
+  end subroutine carbon_crop
+
+
+
+  subroutine co2flux_crop (parameters,                                              & 
+                           dt     ,stc    ,psn    ,tv     ,wroot  ,wstres ,foln   , & 
+                           ipa    ,iha    ,pgs    ,                                 & 
+                           xlai   ,xsai   ,lfmass ,rtmass ,stmass ,                 & 
+                           fastcp ,stblcp ,wood   ,grain  ,gdd,                     & 
+                           gpp    ,npp    ,nee    ,autors ,heters ,                 & 
+                           totsc  ,totlb  )                                           
+
+  implicit none
+
+  type (noahmp_parameters), intent(in) :: parameters
+  real(r8)                    , intent(in) :: dt     
+  real(r8)                    , intent(in) :: stc    
+  real(r8)                    , intent(in) :: psn    
+  real(r8)                    , intent(in) :: tv     
+  real(r8)                    , intent(in) :: wroot  
+  real(r8)                    , intent(in) :: wstres 
+  real(r8)                    , intent(in) :: foln   
+  integer                        , intent(in) :: ipa
+  integer                        , intent(in) :: iha
+  integer                        , intent(in) :: pgs
+  real(r8)                   , intent(inout) :: xlai   
+  real(r8)                   , intent(inout) :: xsai   
+  real(r8)                   , intent(inout) :: lfmass 
+  real(r8)                   , intent(inout) :: rtmass 
+  real(r8)                   , intent(inout) :: stmass 
+  real(r8)                   , intent(inout) :: fastcp 
+  real(r8)                   , intent(inout) :: stblcp 
+  real(r8)                   , intent(inout) :: wood   
+  real(r8)                   , intent(inout) :: grain  
+  real(r8)                   , intent(inout) :: gdd    
+  real(r8)                   , intent(out) :: gpp    
+  real(r8)                   , intent(out) :: npp    
+  real(r8)                   , intent(out) :: nee    
+  real(r8)                   , intent(out) :: autors 
+  real(r8)                   , intent(out) :: heters 
+  real(r8)                   , intent(out) :: totsc  
+  real(r8)                   , intent(out) :: totlb  
+  real(r8)                    :: cflux    
+  real(r8)                    :: lfmsmn   
+  real(r8)                    :: rswood   
+  real(r8)                    :: rsleaf   
+  real(r8)                    :: rsroot   
+  real(r8)                    :: rsgrain  
+  real(r8)                    :: nppl     
+  real(r8)                    :: nppr     
+  real(r8)                    :: nppw     
+  real(r8)                    :: npps     
+  real(r8)                    :: nppg     
+  real(r8)                    :: dielf    
+  real(r8)                    :: addnpplf 
+  real(r8)                    :: addnppst 
+  real(r8)                    :: carbfx   
+  real(r8)                    :: cbhydrafx
+  real(r8)                    :: grleaf   
+  real(r8)                    :: grroot   
+  real(r8)                    :: grwood   
+  real(r8)                    :: grstem   
+  real(r8)                    :: grgrain   
+  real(r8)                    :: leafpt   
+  real(r8)                    :: lfdel    
+  real(r8)                    :: lftovr   
+  real(r8)                    :: sttovr   
+  real(r8)                    :: wdtovr   
+  real(r8)                    :: grtovr   
+  real(r8)                    :: rssoil   
+  real(r8)                    :: rttovr   
+  real(r8)                    :: stablc   
+  real(r8)                    :: woodf    
+  real(r8)                    :: nonlef   
+  real(r8)                    :: resp     
+  real(r8)                    :: rsstem   
+  real(r8)                    :: fsw      
+  real(r8)                    :: fst      
+  real(r8)                    :: fnf      
+  real(r8)                    :: tf       
+  real(r8)                    :: stdel
+  real(r8)                    :: stmsmn
+  real(r8)                    :: sapm     
+  real(r8)                    :: diest
+  real(r8)                    :: bf       
+  real(r8)                    :: rswoodc  
+  real(r8)                    :: stovrc   
+  real(r8)                    :: rsdryc   
+  real(r8)                    :: rtovrc   
+  real(r8)                    :: wstrc    
+  real(r8)                    :: laimin   
+  real(r8)                    :: xsamin   
+  real(r8)                    :: sc
+  real(r8)                    :: sd
+  real(r8)                    :: vegfrac
+  real(r8)                    :: temp
+  real(r8)            :: r,x
+          r(x) = exp(0.08*(x-298.16))
+
+         
+    rsdryc  = 40.0          
+    rswoodc = 3.0e-10       
+    bf      = 0.90          
+    wstrc   = 100.0
+    laimin  = 0.05
+    xsamin  = 0.01
+
+    sapm    = 3.*0.001      
+    lfmsmn  = laimin/0.15
+    stmsmn  = xsamin/sapm
+
+     carbfx     = psn*12.e-6*ipa   
+     cbhydrafx  = psn*30.e-6*ipa
+
+
+     fnf     = min( foln/max(1.e-06,parameters%foln_mx), 1.0 )
+     tf      = parameters%q10mr**( (tv-298.16)/10. )
+     resp    = parameters%lfmr25 * tf * fnf * xlai  * (1.-wstres)  
+     rsleaf  = min(lfmass/dt,resp*30.e-6)                       
+     rsroot  = parameters%rtmr25*(rtmass*1e-3)*tf * 30.e-6         
+     rsstem  = parameters%stmr25*(stmass*1e-3)*tf * 30.e-6         
+     rsgrain = parameters%grainmr25*(grain*1e-3)*tf * 30.e-6       
+
+     grleaf  = max(0.0,parameters%fra_gr*(parameters%lfpt(pgs)*cbhydrafx  - rsleaf))
+     grstem  = max(0.0,parameters%fra_gr*(parameters%stpt(pgs)*cbhydrafx  - rsstem))
+     grroot  = max(0.0,parameters%fra_gr*(parameters%rtpt(pgs)*cbhydrafx  - rsroot))
+     grgrain = max(0.0,parameters%fra_gr*(parameters%grainpt(pgs)*cbhydrafx  - rsgrain))
+
+     lftovr  = parameters%lf_ovrc(pgs)*1.e-6*lfmass
+     rttovr  = parameters%rt_ovrc(pgs)*1.e-6*rtmass
+     sttovr  = parameters%st_ovrc(pgs)*1.e-6*stmass
+     sc  = exp(-0.3*max(0.,tv-parameters%lefreez)) * (lfmass/120.)
+     sd  = exp((wstres-1.)*wstrc)
+     dielf = lfmass*1.e-6*(parameters%dile_fw(pgs) * sd + parameters%dile_fc(pgs)*sc)
+
+     addnpplf    = max(0.,parameters%lfpt(pgs)*cbhydrafx - grleaf-rsleaf)
+     addnppst    = max(0.,parameters%stpt(pgs)*cbhydrafx - grstem-rsstem)
+    
+     lfdel = (lfmass - lfmsmn)/dt
+     stdel = (stmass - stmsmn)/dt
+     dielf = min(dielf,lfdel+addnpplf-lftovr)
+
+     nppl   = max(addnpplf,-lfdel)
+     npps   = max(addnppst,-stdel)
+     nppr   = parameters%rtpt(pgs)*cbhydrafx - rsroot - grroot
+     nppg  =  parameters%grainpt(pgs)*cbhydrafx - rsgrain - grgrain
+
+     lfmass = lfmass + (nppl-lftovr-dielf)*dt
+     stmass = stmass + (npps-sttovr)*dt   
+     rtmass = rtmass + (nppr-rttovr)*dt
+     grain =  grain + nppg*dt 
+
+     gpp = cbhydrafx* 0.4 
+
+     if(pgs==6) then
+       stmass = stmass - stmass*(0.00005)
+       rtmass = rtmass - rtmass*(0.0005)
+       grain  = grain + stmass*(0.00005) + rtmass*(0.0005) 
+     end if
+    
+     if(rtmass.lt.0.0) then
+       rttovr = nppr
+       rtmass = 0.0
+     endif
+
+     if(grain.lt.0.0) then
+       grain = 0.0
+     endif
+
+     if(pgs == 1 .or. pgs == 2 .or. pgs == 8) then
+       fastcp=1000
+     else
+       fastcp = fastcp + (rttovr+lftovr+sttovr+dielf)*dt 
+     end if
+     fst = 2.0**( (stc-283.16)/10. )
+     fsw = wroot / (0.20+wroot) * 0.23 / (0.23+wroot)
+     rssoil = fsw * fst * parameters%mrp* max(0.,fastcp*1.e-3)*12.e-6
+
+     stablc = 0.1*rssoil
+     fastcp = fastcp - (rssoil + stablc)*dt
+     stblcp = stblcp + stablc*dt
+
+     cflux  = - carbfx + rsleaf + rsroot  + rsstem &
+              + rssoil + grleaf + grroot                  
+                                                      
+
+     npp   = (nppl + npps+ nppr +nppg)*0.4      
+     autors = rsroot + rsgrain  + rsleaf +  &                     
+              grleaf + grroot + grgrain                           
+
+     heters = rssoil                                             
+     nee    = (autors + heters - gpp)*44./30.                    
+     totsc  = fastcp + stblcp                                    
+     totlb  = lfmass + rtmass + grain         
+  
+     xlai    = max(lfmass*parameters%bio2lai,laimin)
+     xsai    = max(stmass*sapm,xsamin)
+
+     if(pgs == 8 ) then
+       lfmass = 0.62
+       stmass = 0
+       totlb  = 0
+       gpp    = 0
+       npp    = 0
+       grain  = 0
+       autors = 0
+       nee    = 0
+     end if
+
+    if(pgs == 1 .or. pgs == 2 .or. pgs == 8) then
+     xlai   = 0.05
+     xsai   = 0.05
+     lfmass = lfmsmn
+     stmass = stmsmn
+     rtmass = 0
+    end if 
+    
+end subroutine co2flux_crop
+
+
+
+  subroutine growing_gdd (parameters,                         & 
+                          t2m ,   dt, julian,                 & 
+                          gdd ,                               & 
+                          ipa,   iha,     pgs)                  
+
+
+  type (noahmp_parameters), intent(in) :: parameters
+   real(r8)                      , intent(in)        :: t2m     
+   real(r8)                      , intent(in)        :: dt      
+   real(r8)                      , intent(in)        :: julian  
+
+
+
+   real(r8)                      , intent(inout)     :: gdd     
+
+
+
+   integer                  , intent(out)       :: ipa     
+   integer                  , intent(out)       :: iha     
+   integer                  , intent(out)       :: pgs     
+
+
+
+   real(r8)                                          :: gddday    
+   real(r8)                                          :: dayofs2   
+   real(r8)                                          :: tdiff     
+   real(r8)                                          :: tc
+
+   tc = t2m - 273.15
+
+   ipa = 1
+   iha = 1
+ 
+   if(julian < parameters%pltday)  ipa = 0
+
+    if(julian >= parameters%hsday) iha = 0
+   
+    if(tc <  parameters%gddtbase) then
+      tdiff = 0.0
+    elseif(tc >= parameters%gddtcut) then
+      tdiff = parameters%gddtcut - parameters%gddtbase
+    else
+      tdiff = tc - parameters%gddtbase
+    end if
+
+    gdd     = (gdd + tdiff) * ipa * iha
+
+    gddday  = gdd / (86400.0 / dt)
+   
+
+   if(gddday > 0.0) pgs = 2
+
+   if(gddday >= parameters%gdds1)  pgs = 3
+
+   if(gddday >= parameters%gdds2)  pgs = 4 
+
+   if(gddday >= parameters%gdds3)  pgs = 5
+
+   if(gddday >= parameters%gdds4)  pgs = 6
+
+   if(gddday >= parameters%gdds5)  pgs = 7
+
+   if(julian >= parameters%hsday)  pgs = 8
+ 
+   if(julian <  parameters%pltday) pgs = 1   
+
+end subroutine growing_gdd
+
+
+
+subroutine psn_crop ( parameters,       & 
+                      soldn, xlai,t2m,  & 
+                      psncrop        )    
+
+
+  type (noahmp_parameters), intent(in) :: parameters
+  real(r8)      , intent(in)    :: soldn    
+  real(r8)      , intent(in)    :: xlai     
+  real(r8)      , intent(in)    :: t2m      
+  real(r8)      , intent(out)   :: psncrop  
+  real(r8)                      :: par      
+  real(r8)                      :: amax     
+  real(r8)                      :: l1       
+  real(r8)                      :: l2       
+  real(r8)                      :: l3       
+  real(r8)                      :: i1       
+  real(r8)                      :: i2       
+  real(r8)                      :: i3       
+  real(r8)                      :: a1       
+  real(r8)                      :: a2       
+  real(r8)                      :: a3       
+  real(r8)                      :: a        
+  real(r8)                      :: tc
+
+  tc = t2m - 273.15
+
+  par = parameters%i2par * soldn * 0.0036  
+
+  if(tc < parameters%tassim0) then
+    amax = 1e-10
+  elseif(tc >= parameters%tassim0 .and. tc < parameters%tassim1) then
+    amax = (tc - parameters%tassim0) * parameters%aref / (parameters%tassim1 - parameters%tassim0)
+  elseif(tc >= parameters%tassim1 .and. tc < parameters%tassim2) then
+    amax = parameters%aref
+  else
+    amax= parameters%aref - 0.2 * (t2m - parameters%tassim2)
+  endif 
+  
+  amax = max(amax,0.01)
+
+  if(xlai <= 0.05) then
+    l1 = 0.1127 * 0.05   
+    l2 = 0.5    * 0.05
+    l3 = 0.8873 * 0.05
+  else
+    l1 = 0.1127 * xlai
+    l2 = 0.5    * xlai
+    l3 = 0.8873 * xlai
+  end if
+
+  i1 = parameters%k * par * exp(-parameters%k * l1)
+  i2 = parameters%k * par * exp(-parameters%k * l2)
+  i3 = parameters%k * par * exp(-parameters%k * l3)
+
+  i1 = max(i1,1e-10)
+  i2 = max(i2,1e-10)
+  i3 = max(i3,1e-10)
+
+  a1 = amax * (1 - exp(-parameters%epsi * i1 / amax))
+  a2 = amax * (1 - exp(-parameters%epsi * i2 / amax)) * 1.6
+  a3 = amax * (1 - exp(-parameters%epsi * i3 / amax))
+
+  if (xlai <= 0.05) then
+    a  = (a1+a2+a3) / 3.6 * 0.05
+  elseif (xlai > 0.05 .and. xlai <= 4.0) then
+    a  = (a1+a2+a3) / 3.6 * xlai
+  else
+    a = (a1+a2+a3) / 3.6 * 4
+  end if
+
+  a = a * parameters%psnrf 
+
+  psncrop = 6.313 * a   
+
+end subroutine psn_crop
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  subroutine noahmp_options(idveg     ,iopt_crs  ,iopt_btr  ,iopt_run  ,iopt_sfc  ,iopt_frz , & 
+                             iopt_inf  ,iopt_rad  ,iopt_alb  ,iopt_snf  ,iopt_tbot, iopt_stc, &
+			     iopt_rsf )
+
+  implicit none
+
+  integer,  intent(in) :: idveg     
+  integer,  intent(in) :: iopt_crs  
+  integer,  intent(in) :: iopt_btr  
+  integer,  intent(in) :: iopt_run  
+  integer,  intent(in) :: iopt_sfc  
+  integer,  intent(in) :: iopt_frz  
+  integer,  intent(in) :: iopt_inf  
+  integer,  intent(in) :: iopt_rad  
+  integer,  intent(in) :: iopt_alb  
+  integer,  intent(in) :: iopt_snf  
+  integer,  intent(in) :: iopt_tbot 
+
+  integer,  intent(in) :: iopt_stc  
+                                    
+  integer,  intent(in) :: iopt_rsf  
+
+
+
+  dveg = idveg
+  
+  opt_crs  = iopt_crs  
+  opt_btr  = iopt_btr  
+  opt_run  = iopt_run  
+  opt_sfc  = iopt_sfc  
+  opt_frz  = iopt_frz  
+  opt_inf  = iopt_inf  
+  opt_rad  = iopt_rad  
+  opt_alb  = iopt_alb  
+  opt_snf  = iopt_snf  
+  opt_tbot = iopt_tbot 
+  opt_stc  = iopt_stc
+  opt_rsf  = iopt_rsf
+  
+  end subroutine noahmp_options
+ 
+end module module_sf_noahmplsm
+
