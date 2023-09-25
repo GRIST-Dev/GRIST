@@ -1,0 +1,6 @@
+SCRIP_cdo: generate CDO remapping file from a mesh file
+generate_sst: old NCL scripts for producing SST; 
+              new scripts at: https://github.com/GRIST-Dev/GRIST_Data/tree/master/genSST
+                              https://github.com/GRIST-Dev/GRIST_Data/tree/master/init/geniniFromGFS/data
+initial: old scripts for generating initial files, new scripts at: https://github.com/GRIST-Dev/GRIST_Data/tree/master/init
+
