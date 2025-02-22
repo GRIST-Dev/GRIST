@@ -9,7 +9,7 @@
 
 ## ✨ Features
 
--  **Global-Regional Integrated Dynamical Core**: Supports both hydrostatic and nonhydrostatic dynamics, coupled with a flexible model framework for general-purpose model development.
+-  **Global-Regional Integrated Dynamical Core**: The concept of Global-Regional Integration can be represented in various ways, including global uniform high-resolution (km-scale) models, global models with localized high-resolution areas, and global and regional models developed within the same codebase, such that the regional model is a truncated version of the global model. All of these approaches are pursued by GRIST in an integrated manner, optimizing resource input.
 -  **Two Integrated Physics Suites**:  
   - **PhysW / AMIPW_Physics**  
   - **PhysC / AMIPC_Physics**  
