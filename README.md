@@ -27,6 +27,9 @@
 
 ## General Usage
 
+0. **A Tutorial on Running GRIST on a Laptop from scratch**
+   - https://github.com/GRIST-Dev/GRIST-RunOnUrLapTop
+
 1. **Modify Environment Setup**  
    - Edit `build.sh` in the "build" directory on your local machine.  
    - Choose a model type (e.g., `amipw` or `amipc`).  
